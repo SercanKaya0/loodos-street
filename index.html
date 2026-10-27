@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Loodos Street</title>
+  <meta name="description" content="Loodos'un müşteri projelerini izometrik bir sokakta gezdiren etkileşimli harita.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700;800&family=Red+Hat+Text:wght@400;500;600&family=Red+Hat+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app" class="app">
+    <div id="stage" class="stage" aria-label="Loodos Street 3D sokak haritası"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#" data-action="home" aria-label="Loodos Street, genel görünüm">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M16 2 29 9.5v13L16 30 3 22.5v-13z" fill="var(--teal)"/><path d="M16 2 29 9.5 16 17 3 9.5z" fill="#4fd0d8"/><path d="M16 17v13L3 22.5v-13z" fill="var(--teal-ink)"/></svg>
+        </span>
+        <span class="brand-name">loodos<b>Street</b></span>
+      </a>
+
+      <div class="search" role="search">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Dükkân, proje, ürün ya da sektör ara…" autocomplete="off" aria-label="Ara">
+        <kbd>/</kbd>
+        <div id="results" class="results" role="listbox" hidden></div>
+      </div>
+
+      <div class="district">
+        <button id="districtBtn" class="district-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span id="districtChip" class="chip-sq">ALL</span>
+          <span class="district-txt"><b id="districtName">Sokak genel görünüm</b><small id="districtSub"></small></span>
+          <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="districtMenu" class="menu district-menu" role="listbox" hidden></div>
+      </div>
+
+      <div class="live" title="Sokaktaki araçlar canlı simüle ediliyor"><i></i>Canlı <time id="clock">--:--</time></div>
+
+      <div class="bell-wrap">
+        <button id="bell" class="icon-btn" aria-label="Canlı akış" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+          <span id="bellDot" class="dot" hidden></span>
+        </button>
+        <div id="feed" class="menu feed" hidden></div>
+      </div>
+
+      <div class="me">
+        <span class="avatar" aria-hidden="true">LM</span>
+        <span class="me-txt"><b>Loodos Marcom</b><small>Playground · experimental</small></span>
+      </div>
+    </header>
+
+    <section id="kpis" class="kpis" aria-live="polite"></section>
+
+    <aside id="panel" class="panel" hidden aria-live="polite"></aside>
+
+    <div class="mapctl" role="toolbar" aria-label="Harita kontrolleri">
+      <button class="icon-btn" data-action="zoom-in" aria-label="Yakınlaştır"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="icon-btn" data-action="zoom-out" aria-label="Uzaklaştır"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <span class="sep"></span>
+      <button class="icon-btn" data-action="rotate-l" aria-label="Sola döndür"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg></button>
+      <button class="icon-btn" data-action="rotate-r" aria-label="Sağa döndür"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4h-4"/></svg></button>
+      <span class="sep"></span>
+      <button class="icon-btn" data-action="home" aria-label="Genel görünüm"><svg viewBox="0 0 24 24"><path d="m4 11 8-7 8 7"/><path d="M6 10v10h12V10"/></svg></button>
+    </div>
+
+    <footer class="journey">
+      <div class="journey-head">
+        <b>Loodos ürün yolculuğu</b>
+        <small id="journeySub">Bir ürüne dokun, onu kullanan dükkânlar parlasın.</small>
+      </div>
+      <ol id="journey" class="journey-track"></ol>
+    </footer>
+
+    <p class="hint">Sürükle: kaydır · Sağ tık: döndür · Tekerlek: yakınlaştır · Dükkâna ya da araca tıkla</p>
+
+    <div id="loader" class="loader"><span class="brand-mark spin" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 2 29 9.5v13L16 30 3 22.5v-13z" fill="var(--teal)"/><path d="M16 2 29 9.5 16 17 3 9.5z" fill="#4fd0d8"/><path d="M16 17v13L3 22.5v-13z" fill="var(--teal-ink)"/></svg></span><span>Sokak kuruluyor…</span></div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
