@@ -307,7 +307,7 @@ svg { display: block; }
 
 /* ---------- Harita kontrolleri ---------- */
 .mapctl {
-  position: absolute; right: calc(var(--gutter) + 416px); bottom: 136px; z-index: 12;
+  position: absolute; right: calc(var(--gutter) + 416px); bottom: 236px; z-index: 12;
   display: flex; flex-direction: column; gap: 6px; padding: 6px;
   background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border); border-radius: 14px; box-shadow: var(--shadow);
@@ -397,6 +397,9 @@ svg { display: block; }
 .veh-tag .vt-p { font: 700 9px var(--f-display); width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center; background: var(--violet); color: #fff; flex: none; }
 .stage.near .veh-tag, .veh-tag.on, .veh-tag.glow { opacity: 1; }
 .veh-tag.on { background: #0b7c83; }
+.veh-tag.amb { opacity: 1; background: #e5484d; }
+.veh-tag.amb b { background: #ffffff; color: #c62a2f; }
+.veh-tag.amb.on { background: #b3261e; }
 .veh-tag.glow { box-shadow: 0 0 0 2px #7b70ff, 0 4px 14px rgba(84, 70, 252, .45); }
 
 /* ---------- Yükleniyor ---------- */
@@ -423,6 +426,20 @@ svg { display: block; }
 .theme-menu small { display: block; color: var(--muted); font-size: 11.5px; }
 .live.sim time { color: var(--violet-ink); }
 
+.sound-btn .mute, .sound-btn.muted .wave { display: none; }
+.sound-btn.muted .mute { display: block; }
+.pill.bug { background: #fde8e8; color: #b3261e; }
+:root[data-theme="dark"] .pill.bug { background: #3a1416; color: #ff8a84; }
+.pill.sev-P1 { background: #e5484d; color: #fff; }
+.pill.sev-P2 { background: var(--amber-tint); color: var(--amber); }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 14px; }
+.steps span { display: flex; flex-direction: column; gap: 6px; font: 600 11px/1.25 var(--f-display); color: var(--muted); }
+.steps i { height: 4px; border-radius: 4px; background: var(--line); }
+.steps .done { color: var(--ink-2); }
+.steps .done i { background: var(--ok); }
+.steps .now { color: #e5484d; }
+.steps .now i { background: #e5484d; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
 .present-btn.on { background: var(--teal); color: #fff; border-color: var(--teal); }
 .presenter {
   position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 14;

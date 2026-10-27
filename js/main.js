@@ -2,6 +2,7 @@
    Sahne js/scene.js'te; veri js/data.js + js/data.en.js, metinler js/i18n.js. */
 import { createStreet, esc, initials } from "./scene.js";
 import { t, lang, setLang, localData, locale, prefs, translateDom } from "./i18n.js";
+import { createSiren } from "./siren.js";
 
 const D = localData();
 const $ = s => document.querySelector(s);
@@ -27,6 +28,7 @@ const ICON = {
   truck: '<svg viewBox="0 0 24 24"><path d="M2 6h12v10H2zM14 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
   clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  bug: '<svg viewBox="0 0 24 24"><path d="M8 9a4 4 0 0 1 8 0v5a4 4 0 0 1-8 0z"/><path d="M12 9v9M4 12h4M16 12h4M5 7l3 2M19 7l-3 2M5 18l3-2M19 18l-3-2M10 5 9 3M14 5l1-2"/></svg>',
   auto: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>',
   sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
   moon: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
@@ -36,7 +38,8 @@ const ICON = {
 };
 
 // Sahne kurulamazsa (WebGL yok, GPU kara listede) arayüz bu boş sahneyle liste görünümünde çalışır.
-const NO_STREET = { select() {}, highlight() {}, focusSector() {}, home() {}, zoomBy() {}, rotateBy() {}, intro() {}, setNight() {}, vehicleInfo: () => null };
+const NO_STREET = { select() {}, highlight() {}, focusSector() {}, home() {}, zoomBy() {}, rotateBy() {}, intro() {}, setNight() {}, vehicleInfo: () => null, ambulanceInfo: () => null };
+const siren = createSiren(prefs.get("ls.sound") !== "off");
 let street = NO_STREET;
 let ctx = { kind: "all" };        // KPI ve panel bağlamı
 let activeProduct = null;
@@ -67,6 +70,10 @@ function renderKpis() {
     const top = cs.flatMap(c => c.projects.flatMap(p => p.metrics.map(m => [m[0], `${c.name} · ${m[1]}`])))[0];
     el.innerHTML = kpi("store", t("kpi.shops", { s: s.name }), String(cs.length)) + kpi("box", t("kpi.project"), String(projects))
       + (top ? kpi("chart", top[1], top[0]) : "");
+  } else if (ctx.kind === "ambulance") {
+    const a = street.ambulanceInfo();
+    el.innerHTML = a ? kpi("shield", t("kpi.fixed"), `${a.stats.resolved}/${a.stats.opened}`) + kpi("clock", t("kpi.avgFix"), a.stats.avgFix == null ? "—" : `${a.stats.avgFix} ${t("min")}`)
+      + kpi("bug", t("kpi.openBugs"), String(a.stats.open)) : "";
   } else if (ctx.kind === "vehicle") {
     const v = street.vehicleInfo(ctx.id);
     el.innerHTML = v ? kpi("truck", t("kpi.vehicle"), v.id) + (v.prod ? kpi("box", t("kpi.cargo"), v.prod.name) : "")
@@ -201,6 +208,57 @@ function showVehicle(id) {
   panel.dataset.v = "";
   draw();
   vehicleTimer = setInterval(() => { if (ctx.kind === "vehicle" && ctx.id === id) draw(); else clearInterval(vehicleTimer); }, 400);
+}
+
+// Bug ambulansı: görev kartı, ilerleme adımları ve oturum boyunca tutulan bug hesabı (400 ms'de bir canlı güncellenir).
+function showAmbulance() {
+  ctx = { kind: "ambulance", id: "hotfix" };
+  setJourneyFor(null);
+  const draw = () => {
+    const a = street.ambulanceInfo();
+    if (!a) return closePanel();
+    const m = a.active ? a.mission : null, s = a.stats;
+    const stepAt = !m ? -1 : a.state === "enroute" ? 1 : a.state === "onsite" ? 2 : 4;
+    const status = a.state === "onsite" ? `<span class="pill warn">${esc(t("amb.st.onsite", { n: m.onsiteLeft }))}</span>`
+      : a.state === "leaving" ? `<span class="pill ok">${esc(t("amb.st.leaving"))}</span>`
+        : a.state === "enroute" ? `<span class="pill bug">${esc(t("amb.st.enroute"))}</span>` : `<span class="pill">${esc(t("amb.st.idle"))}</span>`;
+    const ledger = `<div class="sec"><h3>${t("amb.ledger")}</h3><div class="metrics">
+        <div class="metric"><b>${s.opened}</b><small>${t("amb.opened")}</small></div>
+        <div class="metric"><b>${s.resolved}</b><small>${t("amb.resolved")}</small></div>
+        <div class="metric"><b>${s.open}</b><small>${t("amb.open")}</small></div>
+        <div class="metric"><b>${s.opened ? Math.round(s.resolved / s.opened * 100) : 0}%</b><small>${t("amb.rate")}</small></div>
+        <div class="metric"><b>${s.avgResp == null ? "—" : s.avgResp + " " + t("min")}</b><small>${t("amb.avgResp")}</small></div>
+        <div class="metric"><b>${s.avgFix == null ? "—" : s.avgFix + " " + t("min")}</b><small>${t("amb.avgFix")}</small></div>
+      </div><p class="custom" style="margin-top:8px">${esc(t("amb.note"))}</p></div>`;
+    const body = m ? `
+      <div class="steps">${t("amb.steps").map((x, i) => `<span class="${i < stepAt ? "done" : i === stepAt ? "now" : ""}"><i></i>${esc(x)}</span>`).join("")}</div>
+      ${a.state === "enroute" ? `<div class="prog"><div class="prog-top"><span>${esc(m.company.name)}</span><span>%${Math.round(Math.min(1, Math.max(0, m.progress)) * 100)}</span></div><div class="bar"><i style="width:${Math.min(1, Math.max(0, m.progress)) * 100}%;background:#e5484d"></i></div></div>` : ""}
+      <dl class="rows">
+        <div><dt>${t("amb.shop")}</dt><dd>${esc(m.company.name)}</dd></div>
+        <div><dt>${t("amb.project")}</dt><dd>${esc(m.project || "—")}</dd></div>
+        <div><dt>${t("amb.platform")}</dt><dd>${esc(m.platform)}</dd></div>
+        <div><dt>${t("amb.sev")}</dt><dd>${esc(t("sev." + m.sev))}</dd></div>
+        <div><dt>${t("amb.affected")}</dt><dd>%${m.affected.toLocaleString(locale)}</dd></div>
+        <div><dt>${a.state === "enroute" ? t("amb.eta") : t("amb.resp")}</dt><dd>${a.state === "enroute" ? `${m.etaMin} ${t("min")}` : `${m.respMin} ${t("min")}`}</dd></div>
+        <div><dt>${t(a.state === "leaving" ? "amb.fix" : "amb.elapsed")}</dt><dd>${m.fixMin} ${t("min")}</dd></div>
+        <div><dt>${t("amb.cf")}</dt><dd>%${m.cf0.toLocaleString(locale)} ${a.state === "leaving" ? `→ <span style="color:var(--ok-ink)">%${m.cf1.toLocaleString(locale)}</span>` : ""}</dd></div>
+      </dl>
+      <div class="sec"><h3>${t("amb.team")}</h3><div class="tech">${t("amb.roles").map(r => `<span>${esc(r)}</span>`).join("")}</div></div>
+      ${ledger}
+      <button class="cta" data-goto="${m.company.id}">${esc(t("amb.openShop"))}</button>`
+      : `<p class="custom" style="margin-top:14px">${esc(t("amb.idle.next", { n: a.nextIn }))}</p>${ledger}`;
+    const html = `${head(`<span class="p-logo txt" style="--c:#e5484d">${ICON.bug.replace("<svg", '<svg width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"')}</span>`,
+      esc(t("amb.kicker")), m ? esc(m.id) : esc(t("amb.idle.title")), m ? esc(m.title) : esc(t("amb.idle.sub")))}<div class="p-body"><div class="pills">${status}${m ? `<span class="pill sev-${m.sev}">${esc(t("sev." + m.sev))}</span>` : ""}</div>${body}</div>`;
+    const keep = panel.querySelector(".p-body")?.scrollTop || 0;
+    if (panel.hidden || panel.dataset.v !== "hotfix") { openPanel(html); panel.dataset.v = "hotfix"; setHash(""); }
+    else { panel.innerHTML = html; panel.querySelector(".p-body").scrollTop = keep; }
+    panel.querySelector("[data-goto]")?.addEventListener("click", e => openCompany(e.currentTarget.dataset.goto));
+    renderKpis();
+  };
+  clearInterval(vehicleTimer);
+  panel.dataset.v = "";
+  draw();
+  vehicleTimer = setInterval(() => { if (ctx.kind === "ambulance") draw(); else clearInterval(vehicleTimer); }, 400);
 }
 
 function showHQ() {
@@ -479,6 +537,13 @@ function togglePause() {
   $("#prToggle").setAttribute("aria-label", t(presenter.paused ? "pr.play" : "pr.pause"));
 }
 
+function syncSound() {
+  const b = $('[data-action="sound"]');
+  b.classList.toggle("muted", !siren.enabled);
+  b.setAttribute("aria-label", t(siren.enabled ? "sound.on" : "sound.off"));
+  b.title = b.getAttribute("aria-label");
+}
+
 /* ---------- Başlat ---------- */
 addEventListener("unhandledrejection", e => { console.error(e.reason); e.preventDefault(); });
 
@@ -498,6 +563,7 @@ async function boot() {
       el: $("#stage"),
       data: D,
       night: nightNow(),
+      siren,
       onSelect(sel) {
         closeMenus();
         if (!sel) return;
@@ -505,6 +571,7 @@ async function boot() {
         street.highlight(null);
         if (sel.kind === "company") { showCompany(sel.id); setDistrictButton(byCompany(sel.id).sector); }
         else if (sel.kind === "vehicle") showVehicle(sel.id);
+        else if (sel.kind === "ambulance") showAmbulance();
         else if (sel.kind === "hq") showHQ();
         else if (sel.kind === "sector") showSector(sel.id);
       },
@@ -529,6 +596,7 @@ function wireUi() {
   $("#themeBtn").addEventListener("click", e => { e.stopPropagation(); renderThemeMenu(); toggleMenu($("#themeMenu"), $("#themeBtn")); });
   $("#themeMenu").addEventListener("click", e => { const b = e.target.closest("[data-theme]"); if (b) setTheme(b.dataset.theme); });
   $("#langBtn").addEventListener("click", () => setLang(lang === "tr" ? "en" : "tr"));
+  syncSound();
 
   // Sunum: kontrol çubuğu dışındaki her dokunuş, tekerlek ya da Esc sunumu bitirir ve kontrolü kullanıcıya verir.
   $("#presenter").addEventListener("click", e => {
@@ -584,6 +652,7 @@ function wireUi() {
     e.preventDefault();
     const act = a.dataset.action;
     if (act === "present") presenter.on ? stopPresentation() : startPresentation();
+    else if (act === "sound") { siren.setEnabled(!siren.enabled); prefs.set("ls.sound", siren.enabled ? "on" : "off"); syncSound(); }
     else if (act === "home") goHome();
     else if (act === "zoom-in") street.zoomBy(1.4);
     else if (act === "zoom-out") street.zoomBy(1 / 1.4);
@@ -593,6 +662,7 @@ function wireUi() {
     else if (act === "refocus") {
       if (ctx.kind === "company") street.select("company", ctx.id);
       else if (ctx.kind === "vehicle") street.select("vehicle", ctx.id);
+      else if (ctx.kind === "ambulance") street.select("ambulance", "hotfix");
       else if (ctx.kind === "sector") street.focusSector(ctx.id);
       else street.select("hq", "loodos");
     }

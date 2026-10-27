@@ -42,7 +42,7 @@ function glowTexture(stretch = 1) {
   return tex;
 }
 
-export async function createStreet({ el, data, night: initialNight = 0, onSelect, onEvent }) {
+export async function createStreet({ el, data, night: initialNight = 0, siren, onSelect, onEvent }) {
   /* ---------- Renderer, kamera, kontroller ---------- */
   // Dokunmatik/dar ekranda GPU belleğini koru: düşük piksel oranı, küçük gölge haritası, daha az yaya
   const LITE = matchMedia("(pointer: coarse)").matches || innerWidth < 860;
@@ -143,7 +143,7 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
   }
 
   // Pencere, ağaç, lamba gibi tekrar eden parçalar tek InstancedMesh'te toplanır.
-  const inst = { win: [], winLit: [], trunk: [], crown: [], lamp: [], bulb: [], pool: [], dash: [], zebra: [] };
+  const inst = { win: [], winLit: [], trunk: [], crown: [], lamp: [], bulb: [], pool: [], dash: [], zebra: [], ballast: [], sleeper: [], rail: [], pole: [], arm: [] };
   const signMats = [];   // gece hafifçe kendi ışığıyla parlayan tabelalar
   // Gece pencerelerin çoğu yanar; hangilerinin yanacağı kurulumda bir kez seçilir.
   const winList = (lit = .62) => (Math.random() < lit ? inst.winLit : inst.win);
@@ -786,6 +786,356 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
     walkers.push(w);
   }
 
+  /* ---------- Elektrik direkleri ve Loodos bayrakları ---------- */
+  // Kaldırım arkasında tel çekili direkler; tepelerinde dalgalanan Loodos bayrakları gece kendi ışığıyla yanar.
+  const flagTex = (() => {
+    const cv = document.createElement("canvas");
+    cv.width = 320; cv.height = 190;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#1ab0ba"; ctx.fillRect(0, 0, 320, 190);
+    ctx.fillStyle = "#0b7c83"; ctx.fillRect(0, 0, 18, 190);
+    const hx = 78, hy = 95, r = 40;   // marka altıgeni
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i - Math.PI / 2; ctx.lineTo(hx + r * Math.cos(a), hy + r * Math.sin(a)); }
+    ctx.closePath(); ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(hx, hy - r); ctx.lineTo(hx + r * .87, hy - r / 2); ctx.lineTo(hx, hy); ctx.lineTo(hx - r * .87, hy - r / 2); ctx.closePath();
+    ctx.fillStyle = "#bdeef1"; ctx.fill();
+    ctx.fillStyle = "#ffffff"; ctx.font = `800 54px "Red Hat Display"`; ctx.textBaseline = "middle";
+    ctx.fillText("loodos", 128, 98);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return tex;
+  })();
+  const flagMat = new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide, roughness: .75, emissive: 0xffffff, emissiveMap: flagTex, emissiveIntensity: 0 });
+  signMats.push(flagMat);
+  const flagGeo = new THREE.PlaneGeometry(2.4, 1.42).translate(1.2, 0, 0);
+  const flags = [];
+  const wirePts = [];
+  const POLE_H = 8.4;
+  for (const [a, b] of walkSegments) {
+    for (const side of [-1, 1]) {
+      const z = side * 8.75;
+      let prev = null;
+      for (let x = a + 12; x < b - 3; x += 24) {
+        inst.pole.push(local(world, x, 0, z, .26, POLE_H, .26));
+        inst.arm.push(local(world, x, POLE_H - .9, z, .16, .16, 2.2));
+        inst.bulb.push(local(world, x, POLE_H, z, .34, .22, .34));
+        inst.pole.push(local(world, x, POLE_H, z, .08, 2.1, .08));   // bayrak gönderi
+        const f = new THREE.Mesh(flagGeo, flagMat);
+        f.position.set(x + .04, POLE_H + 1.4, z);
+        f.castShadow = true;
+        world.add(f);
+        flags.push({ f, ph: Math.random() * 6 });
+        if (prev != null) {
+          // İki tel, ortada hafifçe sarkar
+          for (const dz of [-.95, .95]) {
+            const y0 = POLE_H - .78, N = 10;
+            for (let i = 0; i < N; i++) {
+              const k0 = i / N, k1 = (i + 1) / N, sag = k => Math.sin(Math.PI * k) * .55;
+              wirePts.push(prev + (x - prev) * k0, y0 - sag(k0), z + dz, prev + (x - prev) * k1, y0 - sag(k1), z + dz);
+            }
+          }
+        }
+        prev = x;
+      }
+    }
+  }
+  if (wirePts.length) {
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute("position", new THREE.Float32BufferAttribute(wirePts, 3));
+    world.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x2a3438, transparent: true, opacity: .55 })));
+  }
+
+  /* ---------- Şehri çevreleyen demiryolu ve Loodos Express ---------- */
+  // Köşeleri yuvarlatılmış halka; ana yolun ve ara sokakların bittiği yerin dışından geçer, hiçbir yolu kesmez.
+  const RAIL = { x0: X_MIN - 30, x1: X_MAX + 30, z0: -44, z1: 44, r: 14 };
+  const track = new THREE.Path();
+  track.moveTo(RAIL.x0 + RAIL.r, RAIL.z0);
+  track.lineTo(RAIL.x1 - RAIL.r, RAIL.z0);
+  track.absarc(RAIL.x1 - RAIL.r, RAIL.z0 + RAIL.r, RAIL.r, -Math.PI / 2, 0, false);
+  track.lineTo(RAIL.x1, RAIL.z1 - RAIL.r);
+  track.absarc(RAIL.x1 - RAIL.r, RAIL.z1 - RAIL.r, RAIL.r, 0, Math.PI / 2, false);
+  track.lineTo(RAIL.x0 + RAIL.r, RAIL.z1);
+  track.absarc(RAIL.x0 + RAIL.r, RAIL.z1 - RAIL.r, RAIL.r, Math.PI / 2, Math.PI, false);
+  track.lineTo(RAIL.x0, RAIL.z0 + RAIL.r);
+  track.absarc(RAIL.x0 + RAIL.r, RAIL.z0 + RAIL.r, RAIL.r, Math.PI, Math.PI * 1.5, false);
+  const TRACK_LEN = track.getLength();
+  const trackAt = (sArc, out = {}) => {
+    const u = (((sArc % TRACK_LEN) + TRACK_LEN) % TRACK_LEN) / TRACK_LEN;
+    const p = track.getPointAt(u), d = track.getTangentAt(u);
+    out.x = p.x; out.z = p.y; out.yaw = Math.atan2(-d.y, d.x);
+    return out;
+  };
+  {
+    const step = 1.1, tp = {};
+    for (let sArc = 0; sArc < TRACK_LEN; sArc += step) {
+      trackAt(sArc, tp);
+      const nx = Math.sin(tp.yaw), nz = Math.cos(tp.yaw);   // raya dik yön
+      inst.ballast.push(local(world, tp.x, 0, tp.z, step + .05, .22, 3.2, tp.yaw));
+      inst.sleeper.push(local(world, tp.x, .22, tp.z, .32, .1, 2.5, tp.yaw));
+      for (const k of [-.62, .62]) inst.rail.push(local(world, tp.x + nx * k, .32, tp.z + nz * k, step + .06, .12, .12, tp.yaw));
+    }
+  }
+  // İstasyon: kuzey hattında, Loodos merkezinin arkasında; tren her turda burada kısa bir mola verir.
+  const stationS = hqX - (RAIL.x0 + RAIL.r) + 11;   // tren peronun ortasında durur
+  {
+    const st = new THREE.Group();
+    box(st, 22, .7, 3.4, M.walk, 0, 0, 0);
+    box(st, 22, .12, .25, M.amber, 0, .7, -1.55, false);
+    for (const x of [-9, -3, 3, 9]) cyl(st, .12, .12, 3.4, M.ink, x, .7, .9, 8);
+    box(st, 23, .3, 3.2, M.teal, 0, 4.1, .4);
+    const stTex = wordTexture("loodos", { color: "#1ab0ba", sub: "EXPRESS", h: 200 });
+    signBoard(st, stTex, 6, 1.9, 5.4, .4, .3);
+    for (const x of [-6, 6]) box(st, 1.8, .45, .6, M.tealInk, x, .7, 1);
+    st.position.set(hqX, 0, RAIL.z0 + 3.4);
+    world.add(st);
+  }
+
+  const train = { cars: [], s: stationS - 60, speed: 0, max: 11, state: "run", wait: 0, served: false };
+  {
+    const locoTex = wordTexture("loodos", { bg: "#1ab0ba", color: "#ffffff", sub: "EXPRESS", h: 200 });
+    const locoSide = new THREE.MeshStandardMaterial({ map: locoTex, roughness: .6, emissive: 0xffffff, emissiveMap: locoTex, emissiveIntensity: 0 });
+    signMats.push(locoSide);
+    const LEN_CAR = [7.2, 6.4, 6.4, 6.4];
+    LEN_CAR.forEach((L, i) => {
+      const g = new THREE.Group();
+      for (const x of [-L / 2 + 1.3, L / 2 - 1.3]) box(g, 1.6, .45, 1.9, M.ink, x, .38, 0);
+      if (i === 0) {
+        box(g, L - 1.6, 2.2, 2.3, M.teal, -.8, .8, 0);
+        const side = new THREE.Mesh(BOX, [M.teal, M.teal, M.teal, M.teal, locoSide, locoSide]);
+        side.scale.set(3.6, 1.1, 2.34); side.position.set(-1.4, 1.95, 0);
+        g.add(side);
+        box(g, 1.6, 1.6, 2.3, M.white, L / 2 - .8, .8, 0);
+        box(g, .1, .7, 1.9, M.glassDark, L / 2, 1.75, 0, false);
+        box(g, L - .4, .25, 2.1, M.ink, 0, 3, 0);
+        for (const z of [-.7, .7]) box(g, .08, .22, .34, headMat, L / 2 + .02, 1.05, z, false);
+      } else {
+        box(g, L, 2.2, 2.3, M.white, 0, .8, 0);
+        box(g, L + .02, .32, 2.34, M.teal, 0, 1.25, 0);
+        box(g, L - .9, .55, 2.34, M.glass, 0, 1.9, 0);
+        box(g, L - .2, .22, 2.1, M.roof, 0, 3, 0);
+      }
+      g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      world.add(g);
+      train.cars.push({ g, back: LEN_CAR.slice(0, i).reduce((a, b) => a + b + .7, 0) + (L - LEN_CAR[0]) / 2 });
+    });
+  }
+  const tpos = {};
+  function stepTrain(dt) {
+    // İstasyona yaklaşırken yavaşlar, 5 sn bekler, sonra yeniden hızlanır.
+    const ahead = ((stationS - train.s) % TRACK_LEN + TRACK_LEN) % TRACK_LEN;
+    let want = train.max;
+    if (train.state === "wait") {
+      want = 0;
+      train.wait -= dt;
+      if (train.wait <= 0) { train.state = "run"; train.served = true; }
+    } else if (!train.served && ahead < 30) {
+      want = Math.max(.6, train.max * ahead / 30);
+      if (ahead < .25) { train.state = "wait"; train.wait = 5; train.speed = 0; want = 0; }
+    }
+    if (train.served && ahead > 40 && ahead < TRACK_LEN - 40) train.served = false;
+    train.speed += (want - train.speed) * Math.min(1, dt * (want < train.speed ? 3 : .6));
+    train.s = (train.s + train.speed * dt) % TRACK_LEN;
+    for (const c of train.cars) {
+      trackAt(train.s - c.back, tpos);
+      c.g.position.set(tpos.x, 0, tpos.z);
+      c.g.rotation.y = tpos.yaw;
+    }
+  }
+
+  /* ---------- SunExpress uçakları ---------- */
+  // SunExpress vakasına selam: gökyüzünde iki SunExpress uçağı döner; tıklanınca SunExpress dükkânı açılır.
+  const sunex = data.companies.find(c => c.id === "sunexpress");
+  const planes = [];
+  const navRed = new THREE.MeshStandardMaterial({ color: 0x7a2020, emissive: 0xff3b30, emissiveIntensity: 0 });
+  const navGreen = new THREE.MeshStandardMaterial({ color: 0x1f5a2c, emissive: 0x2bff6a, emissiveIntensity: 0 });
+  const strobe = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0 });
+  if (sunex) {
+    const cv = document.createElement("canvas");
+    cv.width = 512; cv.height = 96;
+    drawLogo(cv.getContext("2d"), sunex, 14, 10, 484, 76, "#12305e");
+    const logoTex = new THREE.CanvasTexture(cv);
+    logoTex.colorSpace = THREE.SRGBColorSpace;
+    logoTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const logoMat = new THREE.MeshStandardMaterial({ map: logoTex, transparent: true, roughness: .5, depthWrite: false, emissive: 0xffffff, emissiveMap: logoTex, emissiveIntensity: 0 });
+    signMats.push(logoMat);
+    const fuse = mat(0xffffff, { roughness: .4 });
+    const finMat = mat(0xff8a1c, { roughness: .5 });
+    const sunMat = mat(0xffd23f, { roughness: .5, emissive: 0xffb000, emissiveIntensity: .25 });
+    const belly = mat(0x12305e, { roughness: .5 });
+    const part = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+    const finShape = new THREE.Shape();
+    finShape.moveTo(-5.3, 0); finShape.lineTo(-3.3, 0); finShape.lineTo(-4.6, 2.5); finShape.lineTo(-5.6, 2.5); finShape.closePath();
+    const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: .16, bevelEnabled: false }).translate(0, .45, -.08);
+    function planeMesh() {
+      const g = new THREE.Group();
+      part(g, new THREE.CylinderGeometry(.62, .62, 7.6, 18).rotateZ(Math.PI / 2), fuse, 0, 0, 0);
+      part(g, new THREE.SphereGeometry(.62, 18, 12), fuse, 3.8, 0, 0).scale.set(1.7, 1, 1);
+      part(g, new THREE.ConeGeometry(.62, 1.9, 18).rotateZ(Math.PI / 2), fuse, -4.75, .12, 0).scale.set(1, .8, 1);
+      part(g, new THREE.BoxGeometry(6.6, .14, .9), belly, -.3, -.56, 0);
+      part(g, new THREE.BoxGeometry(.5, .32, .9), M.glassDark, 4.25, .25, 0);
+      part(g, new THREE.BoxGeometry(2.1, .14, 10), fuse, .3, -.2, 0);
+      for (const z of [-2.3, 2.3]) part(g, new THREE.CylinderGeometry(.32, .3, 1.5, 14).rotateZ(Math.PI / 2), belly, .9, -.55, z);
+      part(g, new THREE.BoxGeometry(1.1, .1, 3.6), fuse, -4.7, .25, 0);
+      part(g, finGeo, finMat, 0, 0, 0);
+      for (const z of [-.09, .09]) {
+        const disc = part(g, new THREE.CircleGeometry(.5, 24), sunMat, -4.75, 1.85, z);
+        disc.rotation.y = z < 0 ? Math.PI : 0;
+        disc.castShadow = false;
+        const decal = part(g, new THREE.PlaneGeometry(3.4, .64), logoMat, .6, .08, z < 0 ? -.63 : .63);
+        decal.rotation.y = z < 0 ? Math.PI : 0;
+        decal.castShadow = false;
+      }
+      part(g, new THREE.BoxGeometry(.3, .16, .2), navRed, .3, -.2, -5.05);
+      part(g, new THREE.BoxGeometry(.3, .16, .2), navGreen, .3, -.2, 5.05);
+      part(g, new THREE.BoxGeometry(.2, .12, .2), strobe, -5.6, .4, 0);
+      g.rotation.order = "YXZ";
+      g.scale.setScalar(1.8);   // izometrik görünümde uzaktan seçilebilsin
+      g.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "company", id: "sunexpress" }; });
+      world.add(g);
+      pickables.push(g);
+      return g;
+    }
+    const avi = districts.find(d => d.s.id === "avi");
+    planes.push({ g: planeMesh(), cx: avi ? avi.cx : 0, cz: 0, rx: 72, rz: 46, y: 30, dir: 1, a: 0, w: 16 / 60 });
+    planes.push({ g: planeMesh(), cx: 0, cz: 0, rx: LEN / 2 + 30, rz: 78, y: 44, dir: -1, a: 2, w: 18 / (LEN / 2 + 54) });
+  }
+  function stepPlanes(dt) {
+    const blink = (t % 1.3) < .1;
+    strobe.emissiveIntensity = blink ? 3 : 0;
+    for (const p of planes) {
+      p.a += p.dir * p.w * dt;
+      const x = p.cx + p.rx * Math.cos(p.a), z = p.cz + p.rz * Math.sin(p.a);
+      const dx = -p.rx * Math.sin(p.a) * p.dir, dz = p.rz * Math.cos(p.a) * p.dir;
+      const yaw = Math.atan2(-dz, dx);
+      // İç kanat aşağıda: dönüşün merkezine doğru yatış
+      const inward = Math.sign(Math.sin(yaw) * (p.cx - x) + Math.cos(yaw) * (p.cz - z)) || 1;
+      p.g.position.set(x, p.y + Math.sin(p.a * 2) * 1.5, z);
+      p.g.rotation.set(.28 * inward, yaw, 0);
+    }
+  }
+
+  /* ---------- Bug ambulansı (Loodos Hotfix) ---------- */
+  // Ara sıra merkezden çıkar, iki şeridin ortasından sirenle geçer, bir dükkânın hatasını yerinde çözer ve sokaktan ayrılır.
+  // Süreler simülasyondur: 1 sn = 1 dk. Bug kaydı bu oturumda açılan ve çözülen görevlerden hesaplanır.
+  const ambRed = mat(0xe5484d, { roughness: .5 });
+  const flashR = new THREE.MeshStandardMaterial({ color: 0xff2d2d, emissive: 0xff2d2d, emissiveIntensity: .2 });
+  const flashB = new THREE.MeshStandardMaterial({ color: 0x2d6bff, emissive: 0x2d6bff, emissiveIntensity: .2 });
+  const amb = { id: "hotfix", mesh: new THREE.Group(), state: "idle", timer: 14, x: 0, dir: 1, speed: 0, target: null, mission: null,
+    stats: { opened: 0, resolved: 0, fixMin: 0, respMin: 0 }, seq: 4800 + Math.floor(Math.random() * 300) };
+  {
+    const g = amb.mesh;
+    box(g, 4.2, 2, 2, M.white, 0, .5, 0);
+    box(g, 1, 1.2, 2, M.white, 2.4, .5, 0);
+    box(g, .1, .7, 1.7, M.glassDark, 2.95, 1.1, 0);
+    box(g, 4.25, .34, 2.04, ambRed, 0, 1.3, 0);
+    const tex = wordTexture("HOTFIX", { color: "#e5484d", sub: tt("amb.side"), h: 150, w: 640 });
+    const side = new THREE.MeshStandardMaterial({ map: tex, roughness: .6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0 });
+    signMats.push(side);
+    const panelM = new THREE.Mesh(BOX, [M.white, M.white, M.white, M.white, side, side]);
+    panelM.scale.set(3.3, .72, 2.04); panelM.position.set(-.35, 2.05, 0);
+    g.add(panelM);
+    box(g, .55, .28, .7, flashR, .9, 2.5, -.45, false);
+    box(g, .55, .28, .7, flashB, .9, 2.5, .45, false);
+    box(g, 1.5, .06, .42, ambRed, -1, 2.5, 0, false);
+    box(g, .42, .06, 1.5, ambRed, -1, 2.5, 0, false);
+    wheels(g, [1.9, -1.4], 1.02, .38);
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.pick = { kind: "ambulance", id: amb.id }; } });
+    vehicleLights(g, "van");
+    g.visible = false;
+    world.add(g);
+    pickables.push(g);
+    const wrap = document.createElement("div");
+    wrap.className = "lbl";
+    amb.tag = document.createElement("button");
+    amb.tag.className = "veh-tag amb";
+    amb.tag.addEventListener("click", e => { e.stopPropagation(); select("ambulance", amb.id, true); });
+    wrap.appendChild(amb.tag);
+    amb.label = new CSS2DObject(wrap);
+    amb.label.position.set(0, 3.8, 0);
+    amb.label.visible = false;
+    g.add(amb.label);
+  }
+  function ambTag() {
+    const m = amb.mission;
+    const st = !m ? "" : amb.state === "enroute" ? "→ " + m.company.name : amb.state === "onsite" ? tt("amb.tag.onsite") : tt("amb.tag.fixed");
+    amb.tag.className = "veh-tag amb" + (selected?.kind === "ambulance" ? " on" : "");
+    amb.tag.innerHTML = `<b>${m ? esc(m.id) : "HOTFIX"}</b>${esc(st)}`;
+  }
+  function dispatch() {
+    const lot = pick(lots);
+    if (!lot) { amb.timer = 60; return; }
+    const proj = pick(lot.c.projects);
+    const platforms = proj.tech.filter(x => /ios|android|huawei|web|react|flutter|kotlin|swift/i.test(x));
+    amb.seq += 3 + Math.floor(Math.random() * 40);
+    amb.dir = Math.random() < .5 ? 1 : -1;
+    amb.x = amb.dir > 0 ? X_MIN - 14 : X_MAX + 14;
+    amb.speed = 15;
+    amb.target = lot;
+    amb.state = "enroute";
+    const titles = tt("bug.titles");
+    amb.mission = {
+      id: "BUG-" + amb.seq, title: pick(titles), sev: pick(["P1", "P2", "P2", "P3"]), company: lot.c, sector: lot.s,
+      project: proj.app || proj.sub || "", platform: platforms.length ? pick(platforms) : pick(["iOS", "Android"]),
+      affected: +(0.3 + Math.random() * 3.7).toFixed(1), cf0: +(98.9 + Math.random() * .6).toFixed(2), cf1: +(99.82 + Math.random() * .16).toFixed(2),
+      t0: t, tArrive: null, tFixed: null, from: amb.x,
+    };
+    amb.stats.opened++;
+    amb.mesh.position.set(amb.x, 0, 0);
+    amb.mesh.rotation.y = amb.dir > 0 ? 0 : Math.PI;
+    amb.mesh.visible = true;
+    amb.label.visible = true;
+    ambTag();
+    onEvent?.({ kind: "bug", company: lot.c.id, text: tt("ev.dispatch", { id: amb.mission.id, shop: lot.c.name }), sub: amb.mission.title, at: new Date() });
+  }
+  function stepAmbulance(dt) {
+    let sound = 0;
+    if (amb.state === "idle") {
+      amb.timer -= dt;
+      if (amb.timer <= 0) dispatch();
+    } else {
+      const m = amb.mission;
+      let want = 15;
+      if (amb.state === "enroute") {
+        const rem = (amb.target.x - amb.x) * amb.dir;
+        if (rem < 14) want = Math.max(1.5, 15 * rem / 14);
+        if (rem <= .3) { amb.state = "onsite"; amb.timer = rand(6, 9); amb.speed = 0; want = 0; m.tArrive = t; ambTag(); }
+      } else if (amb.state === "onsite") {
+        want = 0;
+        amb.timer -= dt;
+        if (amb.timer <= 0) {
+          amb.state = "leaving";
+          m.tFixed = t;
+          amb.stats.resolved++;
+          amb.stats.fixMin += m.tFixed - m.t0;
+          amb.stats.respMin += m.tArrive - m.t0;
+          ambTag();
+          onEvent?.({ kind: "bug", company: m.company.id, text: tt("ev.fixed", { id: m.id, shop: m.company.name, m: Math.round(m.tFixed - m.t0) }), sub: m.title, at: new Date() });
+        }
+      }
+      amb.speed += (want - amb.speed) * Math.min(1, dt * 3);
+      amb.x += amb.dir * amb.speed * dt;
+      amb.mesh.position.x = amb.x;
+      const flip = Math.floor(t * 6) % 2;
+      flashR.emissiveIntensity = flip ? 3.2 : .15;
+      flashB.emissiveIntensity = flip ? .15 : 3.2;
+      if (amb.state !== "onsite") {
+        // Siren yalnız yoldayken ve ambulans ekrana yakınken duyulur
+        const half = VIEW * el.clientWidth / el.clientHeight / 2 / camera.zoom;
+        sound = THREE.MathUtils.clamp(1.2 - Math.abs(amb.x - controls.target.x) / half, 0, 1);
+      }
+      if (amb.state === "leaving" && (amb.x > X_MAX + 16 || amb.x < X_MIN - 16)) {
+        amb.state = "idle";
+        amb.timer = rand(28, 55);
+        amb.mesh.visible = false;
+        amb.label.visible = false;
+        if (follow === amb) follow = null;
+      }
+    }
+    siren?.set(sound);
+  }
+
   /* ---------- Instanced parçaları oluştur ---------- */
   scene.updateMatrixWorld(true);
   function flush(list, geo, material, { cast = true, colors = false } = {}) {
@@ -815,6 +1165,11 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
   flush(inst.pool, flatGeo, poolMat, { cast: false });
   flush(inst.dash, BOX, mat(C.line, { roughness: 1 }), { cast: false });
   flush(inst.zebra, BOX, mat(C.line, { roughness: 1 }), { cast: false });
+  flush(inst.ballast, BOX, mat(0xc4c9c6, { roughness: 1 }), { cast: false });
+  flush(inst.pole, BOX, mat(0x8d979b, { roughness: .8 }));
+  flush(inst.arm, BOX, M.ink);
+  flush(inst.sleeper, BOX, mat(0x8a7560, { roughness: .95 }), { cast: false });
+  flush(inst.rail, BOX, mat(0x6f7c84, { roughness: .4, metalness: .6 }));
 
   /* ---------- Seçim halkaları ---------- */
   const ringGeo = new THREE.RingGeometry(6.3, 6.8, 64);
@@ -876,6 +1231,9 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
       selRing.visible = true;
       const zoom = zoomFor(.95, 1.6);
       flyTo(framed(groundOf(new THREE.Vector3(hqX, 13, -12)), zoom), zoom);
+    } else if (kind === "ambulance") {
+      const zoom = zoomFor(2, 3);
+      if (amb.mesh.visible) { flyTo(framed(amb.mesh.position.clone().setY(0), zoom), zoom, 800); follow = amb; }
     } else if (kind === "vehicle") {
       const v = vehicles.find(v => v.id === id);
       const zoom = zoomFor(2, 3);
@@ -883,6 +1241,7 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
       follow = v;
     }
     vehicles.forEach(updateTag);
+    ambTag();
     if (fromScene) onSelect?.(selected);
   }
   function highlight(ids, pid = null) {
@@ -967,6 +1326,8 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
     for (const m of signMats) m.emissiveIntensity = .5 * lit;
     hqTeal.emissiveIntensity = .9 * lit;
     water.emissiveIntensity = .3 * lit;
+    navRed.emissiveIntensity = 2.2 * lit;
+    navGreen.emissiveIntensity = 2.2 * lit;
   }
   function setNight(n, instant = false) {
     nightTarget = THREE.MathUtils.clamp(Number(n) || 0, 0, 1);
@@ -1048,6 +1409,9 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
       const v = vehicles.find(v => v.id === selected.id);
       if (v?.dest) { destRing.visible = true; destRing.position.set(v.dest.x, .13, v.dest.side * LOT_Z); destRing.material.opacity = .55 + .35 * Math.sin(t * 5); }
       else destRing.visible = false;
+    } else if (selected?.kind === "ambulance") {
+      destRing.visible = amb.state === "enroute" || amb.state === "onsite";
+      if (destRing.visible) { destRing.position.set(amb.target.x, .13, amb.target.side * LOT_Z); destRing.material.opacity = .55 + .35 * Math.sin(t * 5); }
     }
     for (const w of walkers) {
       w.x += w.dir * w.speed * dt;
@@ -1056,6 +1420,10 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
       w.g.position.y = .18 + Math.abs(Math.sin(t * 7 * w.speed + w.ph)) * .08;
       w.g.rotation.y = w.dir > 0 ? 0 : Math.PI;
     }
+    stepTrain(dt);
+    stepAmbulance(dt);
+    for (const fl of flags) fl.f.rotation.y = Math.sin(t * 1.7 + fl.ph) * .28;
+    stepPlanes(dt);
     for (const f of forklifts) {
       f.t += dt;
       const ph = (f.t % 8) / 8;
@@ -1090,6 +1458,22 @@ export async function createStreet({ el, data, night: initialNight = 0, onSelect
       camera.position.copy(controls.target).add(off);
     },
     intro() { flyTo(groundOf(new THREE.Vector3(hqX + 48, 6, -2)), fitZoom(125), 2200); },
+    ambulanceInfo() {
+      const m = amb.mission, s = amb.stats;
+      const rem = m && amb.state === "enroute" ? Math.max(0, (amb.target.x - amb.x) * amb.dir) : 0;
+      return {
+        state: amb.state, active: amb.state !== "idle",
+        mission: m && { ...m, company: m.company, sector: m.sector,
+          etaMin: amb.state === "enroute" ? Math.round(rem / 15 + 1) : 0,
+          respMin: m.tArrive != null ? Math.round(m.tArrive - m.t0) : null,
+          fixMin: m.tFixed != null ? Math.round(m.tFixed - m.t0) : Math.round(t - m.t0),
+          onsiteLeft: amb.state === "onsite" ? Math.ceil(amb.timer) : 0,
+          progress: amb.state === "enroute" ? 1 - rem / Math.max(1, (amb.target.x - m.from) * amb.dir) : 1 },
+        nextIn: amb.state === "idle" ? Math.ceil(amb.timer) : 0,
+        stats: { opened: s.opened, resolved: s.resolved, open: s.opened - s.resolved,
+          avgFix: s.resolved ? Math.round(s.fixMin / s.resolved) : null, avgResp: s.resolved ? Math.round(s.respMin / s.resolved) : null },
+      };
+    },
     vehicleInfo(id) {
       const v = vehicles.find(v => v.id === id);
       if (!v) return null;
