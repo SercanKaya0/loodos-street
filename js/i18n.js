@@ -102,6 +102,11 @@ const T = {
 
     "sound.on": "Sireni kapat", "sound.off": "Sireni aç",
     "event": "Özel gün",
+    "hol.4-23": ["23 Nisan", "Ulusal Egemenlik ve Çocuk Bayramımız Kutlu Olsun"],
+    "hol.5-19": ["19 Mayıs", "Atatürk'ü Anma, Gençlik ve Spor Bayramımız Kutlu Olsun"],
+    "hol.8-30": ["30 Ağustos", "Zafer Bayramımız Kutlu Olsun"],
+    "hol.10-29": ["29 Ekim", "Cumhuriyet Bayramımız Kutlu Olsun"],
+    "hol.year": "{n}. yıl", "ny.line": "Mutlu Yıllar", "ny.small": "Loodos ailesinden",
     "ev.auto": "Tarihe göre", "ev.auto.d": "Bayramlarda bayrak ve havai fişek, yılbaşında ışıklar; şu an: {now}",
     "ev.none": "Yok", "ev.none.d": "Her zamanki sokak",
     "ev.national": "Ulusal bayram", "ev.national.d": "Direklerde Türk bayrakları, akşam havai fişek",
@@ -205,6 +210,11 @@ const T = {
 
     "sound.on": "Mute siren", "sound.off": "Unmute siren",
     "event": "Special day",
+    "hol.4-23": ["23 April", "Happy National Sovereignty and Children's Day"],
+    "hol.5-19": ["19 May", "Happy Commemoration of Atatürk, Youth and Sports Day"],
+    "hol.8-30": ["30 August", "Happy Victory Day"],
+    "hol.10-29": ["29 October", "Happy Republic Day"],
+    "hol.year": "{n} anniversary", "ny.line": "Happy New Year", "ny.small": "From the Loodos family",
     "ev.auto": "By date", "ev.auto.d": "Flags and fireworks on national days, lights at New Year; now: {now}",
     "ev.none": "None", "ev.none.d": "The usual street",
     "ev.national": "National holiday", "ev.national.d": "Turkish flags on the poles, fireworks in the evening",

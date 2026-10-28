@@ -467,6 +467,25 @@ const EVENTS = ["auto", "none", "national", "newyear"];
 let eventMode = EVENTS.includes(prefs.get("ls.event")) ? prefs.get("ls.event") : "auto";
 // Ulusal bayramlar arifeden başlar: 22–23 Nisan, 18–19 Mayıs, 29–30 Ağustos, 28–29 Ekim; yılbaşı 20 Aralık – 2 Ocak
 const NATIONAL = [[4, 23], [5, 19], [8, 30], [10, 29]];
+const FOUNDED = { "4-23": 1920, "5-19": 1919, "8-30": 1922, "10-29": 1923 };
+// Giydirme metni: hangi bayram (bugün ya da yarın), kaçıncı yıl; elle seçilince 29 Ekim
+function eventInfo(kind, d = new Date()) {
+  if (kind === "newyear") {
+    const year = d.getMonth() === 11 ? d.getFullYear() + 1 : d.getFullYear();
+    return { big: String(year), line: t("ny.line"), small: t("ny.small") };
+  }
+  if (kind !== "national") return null;
+  let key = "10-29";
+  for (const day of [d, new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)]) {
+    const k = `${day.getMonth() + 1}-${day.getDate()}`;
+    if (FOUNDED[k]) { key = k; break; }
+  }
+  const [big, line] = t("hol." + key);
+  const n = d.getFullYear() - FOUNDED[key];
+  // İngilizce sıra eki: 101st, 102nd, 103rd, 111th
+  const ord = lang === "en" ? n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th") : n;
+  return { big, line, small: t("hol.year", { n: ord }) };
+}
 function datedEvent(d = new Date()) {
   const m = d.getMonth() + 1, day = d.getDate();
   const next = new Date(d.getFullYear(), d.getMonth(), day + 1);
@@ -481,7 +500,7 @@ function applyEvent() {
   const e = eventNow();
   if (e === shownEvent) return;
   shownEvent = e;
-  street.setEvent(e);
+  street.setEvent(e, eventInfo(e));
 }
 function setEventMode(mode) {
   eventMode = mode;

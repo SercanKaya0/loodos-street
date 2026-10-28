@@ -1247,7 +1247,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   /* ---------- Müşteri detayları, özel günler, şehir hayatı (js/extras.js) ---------- */
   const extras = buildExtras({
     world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
-    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
+    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
     crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent,
     laneBusy: () => amb.state !== "idle",   // ambulans ve itfaiye aynı orta şeridi kullanır, sırayla çıkar
   });
@@ -1672,7 +1672,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   return {
     districts, vehicles, hqX,
     select, highlight, focusSector, home, setNight, setWeather, setClock,
-    setEvent: kind => extras.setEvent(kind),
+    setEvent: (kind, info) => extras.setEvent(kind, info),
     clearSelection() { select(null); highlight(null); },
     zoomBy(f) { follow = null; flyTo(controls.target.clone(), THREE.MathUtils.clamp(camera.zoom * f, controls.minZoom, controls.maxZoom), 350); },
     rotateBy(a) {

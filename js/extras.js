@@ -9,7 +9,7 @@ const clamp01 = x => Math.min(1, Math.max(0, x));
 
 export function buildExtras(k) {
   const { world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
-    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, plazaPos, signMats, wordTexture, glowTex, flagMat, flagTex, crowns, data,
+    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagTex, crowns, data,
     pickables, LITE, rand, pick, tt, onEvent, laneBusy } = k;
   const anim = [];            // her karede (dt, t) ile çağrılır
   const nightFx = [];         // applyNight'ta (lit) ile çağrılır
@@ -144,7 +144,7 @@ export function buildExtras(k) {
     return g;
   }
 
-  // Oyak Renault: cam galeride sarı bir Renault, dönen platformda siyah Mégane.
+  // Oyak Renault: cam galeride ve önündeki döner vitrinde siyah Mégane (sarı yalnızca RENAULT tabelasında).
   {
     const g = attach("oyak-renault", -11);
     if (g) {
@@ -152,24 +152,27 @@ export function buildExtras(k) {
       plane(g, 12, 7.6, M.walk, 0, .045, 0);
       box(g, 7.4, .25, 5, M.white, -1.8, 0, 0);
       box(g, 7.6, .3, 5.2, M.white, -1.8, 3.3, 0);
-      box(g, 7.7, .16, 5.3, yellow, -1.8, 3.6, 0);
+      box(g, 7.7, .16, 5.3, mat(0x2a3036, { roughness: .5 }), -1.8, 3.6, 0);
       for (const [x, z] of [[-5.4, -2.4], [1.8, -2.4], [-5.4, 2.4], [1.8, 2.4]]) box(g, .16, 3.05, .16, M.ink, x, .25, z);
       const glass = new THREE.Mesh(BOX, new THREE.MeshStandardMaterial({ color: 0xa9dde3, roughness: .1, metalness: .2, transparent: true, opacity: .32, depthWrite: false }));
       glass.scale.set(7.3, 3.05, 4.9);
       glass.position.set(-1.8, .25 + 1.525, 0);
       g.add(glass);
-      carMesh(g, -1.8, 0, .25, 0xf6c400).position.y = .25;
+      const inside = meganeMesh();
+      inside.position.set(-1.8, .25, 0);
+      inside.rotation.y = .25;
+      inside.scale.setScalar(.85);
+      g.add(inside);
       const lamp = mat(0xffffff, { emissive: 0xfff1d6, emissiveIntensity: 0 });
       box(g, 7, .05, 4.6, lamp, -1.8, 3.28, 0, false);
       nightFx.push(lit => { lamp.emissiveIntensity = 1.4 * lit; });
-      carMesh(g, 3.6, 0, .4, 0xf6c400);
       // Sokağa bakan döner vitrin: siyah Mégane
       const front = companies.get("oyak-renault").group;
       const podium = new THREE.Group();
       podium.position.set(-2.4, 0, 5.75);
       front.add(podium);
       cyl(podium, 2.25, 2.35, .22, M.white, 0, 0, 0, 36);
-      cyl(podium, 2.37, 2.37, .06, yellow, 0, .2, 0, 36);
+      cyl(podium, 2.37, 2.37, .06, new THREE.MeshStandardMaterial({ color: 0xd9dde0, roughness: .15, metalness: 1 }), 0, .2, 0, 36);
       const turntable = new THREE.Group();
       turntable.position.y = .26;
       podium.add(turntable);
@@ -501,8 +504,113 @@ export function buildExtras(k) {
   xmas.visible = false;
   world.add(xmas);
 
+  /* Giydirme: yolun üstünden geçen bayrak süsleri, merkezde yan bayraklar ve tepe bandı, meydanda tebrik billboard'u */
+  const dress = new THREE.Group();
+  dress.visible = false;
+  world.add(dress);
+  // Direk çiftleri arasında, yolun üstünden sarkan ip ve flamalar (renkler olaya göre)
+  const pennantGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -.28), new THREE.Vector3(0, 0, .28), new THREE.Vector3(0, -.7, 0)]);
+  pennantGeo.computeVertexNormals();
+  const pennantSpots = [], ropePts = [];
+  for (const [a, b] of walkSegments) for (let x = a + 12; x < b - 3; x += 24) {
+    const sag = z => 7.5 - 1.3 * (1 - (z / 8.75) ** 2);
+    for (let z = -8.75; z < 8.75; z += .5) ropePts.push(x, sag(z), z, x, sag(z + .5), z + .5);
+    for (let z = -8; z <= 8; z += .9) pennantSpots.push([x, sag(z), z]);
+  }
+  const ropeGeo = new THREE.BufferGeometry();
+  ropeGeo.setAttribute("position", new THREE.Float32BufferAttribute(ropePts, 3));
+  dress.add(new THREE.LineSegments(ropeGeo, new THREE.LineBasicMaterial({ color: 0x2a3438 })));
+  const pennants = new THREE.InstancedMesh(pennantGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: .7 }), Math.max(1, pennantSpots.length));
+  {
+    const m4 = new THREE.Matrix4();
+    pennantSpots.forEach(([x, y, z], i) => pennants.setMatrixAt(i, m4.makeTranslation(x, y, z)));
+  }
+  dress.add(pennants);
+  const DRESS_COLORS = { national: [0xe30a17, 0xffffff], newyear: [0x1ab0ba, 0xffd36b, 0x5446fc, 0xff5a8a] };
+  function paintPennants(kind) {
+    const cols = DRESS_COLORS[kind] || DRESS_COLORS.national, c = new THREE.Color();
+    pennantSpots.forEach((_, i) => pennants.setColorAt(i, c.setHex(cols[i % cols.length])));
+    pennants.instanceColor.needsUpdate = true;
+  }
+  paintPennants("national");
+  // Merkez binası: iki yan cephede dikey bayrak, tepede metin bandı (HQ: W 13, D 10, H 22)
+  const hqDress = new THREE.Group();
+  hqDress.visible = false;
+  hq.add(hqDress);
+  const sideFlagMat = new THREE.MeshStandardMaterial({ map: trFlagTex, side: THREE.DoubleSide, roughness: .8 });
+  for (const s of [-1, 1]) {
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 4.3), sideFlagMat);
+    f.position.set(s * 6.62, 12, 0);
+    f.rotation.set(0, s * Math.PI / 2, Math.PI / 2);
+    hqDress.add(f);
+  }
+  const bandCv = document.createElement("canvas");
+  bandCv.width = 1024; bandCv.height = 128;
+  const bandTex = new THREE.CanvasTexture(bandCv);
+  bandTex.colorSpace = THREE.SRGBColorSpace;
+  const bandMat = new THREE.MeshStandardMaterial({ map: bandTex, emissive: 0xffffff, emissiveMap: bandTex, emissiveIntensity: .35, roughness: .6 });
+  const band = new THREE.Mesh(new THREE.PlaneGeometry(12.4, 1.55), bandMat);
+  band.position.set(0, 19.6, 5.09);
+  hqDress.add(band);
+  // Meydanda tebrik billboard'u (iki yüzü de baskılı; hangi yönden bakılsa okunur)
+  const boardCv = document.createElement("canvas");
+  boardCv.width = 1024; boardCv.height = 384;
+  const boardTex = new THREE.CanvasTexture(boardCv);
+  boardTex.colorSpace = THREE.SRGBColorSpace;
+  boardTex.anisotropy = 8;
+  const boardFace = new THREE.MeshStandardMaterial({ map: boardTex, emissive: 0xffffff, emissiveMap: boardTex, emissiveIntensity: .5, roughness: .55 });
+  const board = new THREE.Group();
+  for (const x of [-5.6, 5.6]) box(board, .4, 6.2, .4, M.ink, x, 0, 0);
+  const boardM = new THREE.Mesh(BOX, [M.ink, M.ink, M.ink, M.ink, boardFace, boardFace]);
+  boardM.scale.set(14, 5.25, .45);
+  boardM.position.set(0, 6.2 + 2.625, 0);
+  boardM.castShadow = true;
+  board.add(boardM);
+  board.position.set(plazaPos.x, 0, plazaPos.z + 6.2);
+  board.visible = false;
+  world.add(board);
+  nightFx.push(l => { boardFace.emissiveIntensity = .5 + .5 * l; bandMat.emissiveIntensity = .35 + .6 * l; });
+
+  function drawCrescent(c, cx, cy, r, bg) {
+    c.fillStyle = "#ffffff"; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+    c.fillStyle = bg; c.beginPath(); c.arc(cx + r * .25, cy, r * .8, 0, Math.PI * 2); c.fill();
+    const sx = cx + r * 1.15, sr = r * .5;
+    c.fillStyle = "#ffffff"; c.beginPath();
+    for (let i = 0; i < 10; i++) { const a = Math.PI + i * Math.PI / 5, rr = i % 2 ? sr * .382 : sr; c.lineTo(sx + rr * Math.cos(a), cy + rr * Math.sin(a)); }
+    c.closePath(); c.fill();
+  }
+  function fitText(c, text, weight, size, maxW) {
+    c.font = `${weight} ${size}px "Red Hat Display"`;
+    while (c.measureText(text).width > maxW && size > 14) { size -= 2; c.font = `${weight} ${size}px "Red Hat Display"`; }
+  }
+  let holiday = null;   // dijital panolar da her ikinci mesajda bunu gösterir
+  function drawDress(kind, info) {
+    const national = kind === "national";
+    const bg = national ? "#e30a17" : "#0c1a3a", accent = national ? "#ffffff" : "#ffd36b";
+    let c = boardCv.getContext("2d");
+    c.fillStyle = bg; c.fillRect(0, 0, 1024, 384);
+    c.fillStyle = accent; c.globalAlpha = .9; c.fillRect(0, 352, 1024, 32); c.globalAlpha = 1;
+    if (national) drawCrescent(c, 150, 176, 104, bg);
+    else { c.fillStyle = "#ffd36b"; for (let i = 0; i < 40; i++) { c.globalAlpha = Math.random() * .8 + .2; c.fillRect(Math.random() * 1024, Math.random() * 340, 4, 4); } c.globalAlpha = 1; }
+    const left = national ? 330 : 60, w = 1024 - left - 50;
+    c.fillStyle = accent; c.textBaseline = "alphabetic"; c.textAlign = "left";
+    fitText(c, info.big, 800, 120, w); c.fillText(info.big, left, 150);
+    c.fillStyle = "#ffffff";
+    fitText(c, info.line, 700, 52, w); c.fillText(info.line, left, 228);
+    fitText(c, info.small, 600, 36, w); c.globalAlpha = .85; c.fillText(info.small, left, 290); c.globalAlpha = 1;
+    c.font = `700 30px "Red Hat Display"`; c.textAlign = "right"; c.fillStyle = national ? "#e30a17" : "#0c1a3a"; c.fillText("loodos", 1000, 378);
+    boardTex.needsUpdate = true;
+    c = bandCv.getContext("2d");
+    c.fillStyle = bg; c.fillRect(0, 0, 1024, 128);
+    c.fillStyle = "#ffffff"; c.textAlign = "center"; c.textBaseline = "middle";
+    const txt = `${info.big} · ${info.small}`.toLocaleUpperCase(document.documentElement.lang === "en" ? "en" : "tr");
+    fitText(c, txt, 800, 84, 980); c.fillText(txt, 512, 68);
+    bandTex.needsUpdate = true;
+    holiday = { big: info.big, small: info.line };
+  }
+
   let event = "none";
-  function setEvent(kind) {
+  function setEvent(kind, info) {
     event = kind;
     const national = kind === "national", newyear = kind === "newyear";
     flagMat.map = flagMat.emissiveMap = national ? trFlagTex : flagTex;
@@ -510,6 +618,11 @@ export function buildExtras(k) {
     treeLights.visible = newyear;
     xmas.visible = newyear;
     for (const f of fountain) f.visible = !newyear;
+    // Giydirme
+    const dressed = (national || newyear) && !!info;
+    dress.visible = board.visible = hqDress.visible = dressed;
+    for (const o of hqDress.children) if (o !== band) o.visible = national;
+    if (dressed) { paintPennants(kind); drawDress(kind, info); } else holiday = null;
   }
 
   /* ================= 3. Şehir hayatı ================= */
@@ -686,7 +799,7 @@ export function buildExtras(k) {
       g.add(scr);
       g.position.set(sp.x, 0, sp.z);
       world.add(g);
-      const ad = { ctx, tex, i: (i * 5) % msgs.length, t: i * 1.5 };
+      const ad = { ctx, tex, i: (i * 5) % msgs.length, t: i * 1.5, n: 0 };
       drawAd(ctx, msgs[ad.i]);
       tex.needsUpdate = true;
       ads.push(ad);
@@ -694,7 +807,8 @@ export function buildExtras(k) {
         if ((ad.t += dt) < 6) return;
         ad.t = 0;
         ad.i = (ad.i + 1) % msgs.length;
-        drawAd(ad.ctx, msgs[ad.i]);
+        ad.n++;
+        drawAd(ad.ctx, holiday && ad.n % 2 ? holiday : msgs[ad.i]);
         ad.tex.needsUpdate = true;
       });
     });
