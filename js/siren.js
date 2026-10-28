@@ -1,6 +1,6 @@
 /* Bug ambulansının kısık sesli sireni (Web Audio, dosya yok). Tarayıcılar sesi ancak ilk dokunuştan sonra açar;
    o ana kadar sessiz kalır. Ses kurulamazsa her çağrı sessizce geçer. */
-const VOLUME = .035;
+const VOLUME = .01;
 
 export function createSiren(enabled = true) {
   let ctx = null, gain = null, level = 0, sent = -1;

@@ -82,6 +82,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
   controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
   controls.zoomToCursor = true;
+  controls.zoomSpeed = 1.6;   // tekerlek ve iki parmak (dokunmatik) zoom daha çevik
 
   function resize() {
     const w = el.clientWidth, h = el.clientHeight, a = w / h;
@@ -117,6 +118,14 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
     teal: mat(C.teal), tealInk: mat(C.tealInk), white: mat(0xffffff), wheel: mat(0x2a3136, { roughness: .9 }),
     trunk: mat(C.trunk), pallet: mat(C.pallet), amber: mat(C.amber), walk: mat(C.walk), curb: mat(C.curb), road: mat(C.road, { roughness: .95 }),
   };
+  // Farlar ve stop lambaları gece yanar (applyNight); scooter'lar binalarla birlikte kurulduğu için burada tanımlı.
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xfff6dd, emissive: 0xfff1c9, emissiveIntensity: 0 });
+  const tailMat = new THREE.MeshStandardMaterial({ color: 0x7a2020, emissive: 0xff3b30, emissiveIntensity: 0 });
+  const BRIFIC = [   // brific.com renkleri
+    { name: "Crimson", body: 0xd8322a, accent: 0x9e1f19 },
+    { name: "Bianco", body: 0xeef1f5, accent: 0x8f9bb3 },
+    { name: "Marine", body: 0x2f63e8, accent: 0x1d3fa8 },
+  ];
   const BOX = new THREE.BoxGeometry(1, 1, 1);
   function box(parent, w, h, d, material, x = 0, y = 0, z = 0, shadow = true) {
     const m = new THREE.Mesh(BOX, material);
@@ -294,12 +303,12 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   // Ara sokaklar ve yaya geçitleri
   const crossXs = districts.map(d => d.x0 - GAP / 2);
   for (const cx of crossXs) {
-    plane(world, 8, 70, M.road, cx, .015, 0);
+    plane(world, 8, 56, M.road, cx, .015, 0);
     for (let i = -3; i <= 3; i++) {
       for (const zc of [-6.3, 6.3]) inst.zebra.push(local(world, cx + i * 1.05, .035, zc, .55, .02, 3));
       for (const xc of [-5.2, 5.2]) inst.zebra.push(local(world, cx + xc, .035, i * 1.2, .9, .02, .6));
     }
-    for (let z = 9; z < 34; z += 4.5) { inst.dash.push(local(world, cx, .03, z, .22, .02, 2.2)); inst.dash.push(local(world, cx, .03, -z, .22, .02, 2.2)); }
+    for (let z = 9; z < 27; z += 4.5) { inst.dash.push(local(world, cx, .03, z, .22, .02, 2.2)); inst.dash.push(local(world, cx, .03, -z, .22, .02, 2.2)); }
   }
   // Mahalle zemin tonları ve kaldırım bordürü sektör renginde
   for (const d of districts) {
@@ -478,7 +487,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       box(g, W + .3, .25, D + .3, acc, 0, H - .25, 0);
       box(g, .6, 1.5, .5, acc, W / 2 - .6, 0, D / 2 + 2.2);
       box(g, .4, .4, .08, M.glassDark, W / 2 - .6, 1, D / 2 + 2.47);
-      for (const sx of [-2.6, -1.6, -.6]) scooterMesh(g, sx, D / 2 + 2, Math.PI / 2);
+      if (c.id === "brific") BRIFIC.forEach((m, i) => scooterMesh(g, -3 + i * 1.3, D / 2 + 2, Math.PI / 2, m).scale.setScalar(1.25));
       signBoard(g, tex, W * .6, W * .6 * 200 / 640, 3.75 + .1, D / 2 + .14);
       signBoard(g, tex, W * .6, W * .6 * 200 / 640, 3.4, -D / 2 - .14);
       top = H + .4;
@@ -659,12 +668,25 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
     parent?.add(g);
     return g;
   }
-  function scooterMesh(parent, x, z, ry) {
+  // Brific e-scooter (brific.com): renkli V gövde, siyah uzun gidon, kalın lastikler ve çamurluklar, önde dikey far.
+  function scooterMesh(parent, x, z, ry, model = pick(BRIFIC)) {
     const g = new THREE.Group();
-    box(g, 1.3, .12, .32, M.ink, 0, .22, 0);
-    cyl(g, .05, .05, 1.3, M.ink, .55, .25, 0, 6);
-    box(g, .08, .08, .7, M.ink, .55, 1.5, 0);
-    for (const wx of [-.55, .55]) { const w = cyl(g, .2, .2, .1, M.wheel, wx, 0, 0, 10); w.rotation.x = Math.PI / 2; w.position.y = .2; }
+    const body = mat(model.body, { roughness: .35, metalness: .1 }), accent = mat(model.accent, { roughness: .4 });
+    for (const wx of [-.62, .62]) { const w = cyl(g, .3, .3, .16, M.wheel, wx, 0, 0, 14); w.rotation.x = Math.PI / 2; w.position.y = .3; }
+    box(g, .5, .06, .2, M.ink, -.64, .6, 0);                    // arka çamurluk
+    box(g, .38, .06, .2, M.ink, .64, .6, 0);                    // ön çamurluk
+    box(g, 1, .1, .3, M.ink, -.08, .26, 0);                     // basamak
+    box(g, .95, .2, .32, body, .08, .36, 0);                    // gövdenin alt kolu
+    const arm = box(g, .2, .8, .32, body, .36, .4, 0);          // V'nin yükselen kolu
+    arm.rotation.z = -.5;
+    box(g, .26, .2, .33, accent, .2, .36, 0);
+    const seat = box(g, .6, .12, .28, M.ink, -.4, .58, 0);      // arka kapak
+    seat.rotation.z = .12;
+    const stem = cyl(g, .045, .045, 1.35, M.ink, .55, .5, 0, 8);
+    stem.rotation.z = .1;
+    box(g, .08, .06, .8, M.ink, .46, 1.82, 0);                  // gidon
+    box(g, .04, .26, .1, headMat, .62, .78, 0, false);          // dikey far
+    g.userData.model = model.name;
     g.position.set(x, 0, z); g.rotation.y = ry;
     parent?.add(g);
     return g;
@@ -672,20 +694,18 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   function riderScooter() {
     const g = scooterMesh(null, 0, 0, 0);
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(.24, .7, 4, 8), mat(pick([0x5446fc, 0x1ab0ba, 0xd6457a])));
-    body.position.set(.1, 1.05, 0); body.castShadow = true; g.add(body);
+    body.position.set(0, 1.0, 0); body.castShadow = true; g.add(body);
     const head = new THREE.Mesh(new THREE.SphereGeometry(.2, 10, 8), mat(0xe8c4a0));
-    head.position.set(.1, 1.65, 0); g.add(head);
+    head.position.set(0, 1.6, 0); g.add(head);
     return g;
   }
 
-  // Farlar, stop lambaları ve yola düşen far huzmesi; gece yanar (applyNight).
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xfff6dd, emissive: 0xfff1c9, emissiveIntensity: 0 });
-  const tailMat = new THREE.MeshStandardMaterial({ color: 0x7a2020, emissive: 0xff3b30, emissiveIntensity: 0 });
+  // Yola düşen far huzmesi; gece yanar (applyNight).
   const glowTex = glowTexture();
   const beamMat = new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffe2a8, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
   beamMat.visible = false;
   const flatGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-  const LIGHTS = { truck: [3.58, -3.42, .8, .7], van: [2.93, -2.13, .72, .75], car: [1.82, -1.82, .58, .5], scooter: [.62, null, 0, 1.15] };
+  const LIGHTS = { truck: [3.58, -3.42, .8, .7], van: [2.93, -2.13, .72, .75], car: [1.82, -1.82, .58, .5], scooter: [.66, null, 0, .78] };
   function vehicleLights(g, type) {
     const [fx, bx, hw, y] = LIGHTS[type];
     for (const z of hw ? [-hw, hw] : [0]) {
@@ -765,7 +785,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   }
   const span = X_MAX - X_MIN;
   [["truck", 1], ["truck", -1], ["van", 1], ["truck", 1], ["van", -1], ["car", 1], ["car", -1], ["truck", -1], ["scooter", 1],
-   ["car", 1], ["van", 1], ["scooter", -1], ["car", -1], ["truck", 1], ["van", -1], ["car", -1]].forEach(([t, d], i) => {
+   ["car", 1], ["van", 1], ["scooter", -1], ["car", -1], ["truck", 1], ["van", -1], ["car", -1], ["scooter", 1], ["scooter", -1]].forEach(([t, d], i) => {
     addVehicle(t, d, X_MIN + ((i * 37) % 16) / 16 * span + rand(-4, 4));
   });
 
@@ -849,7 +869,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
 
   /* ---------- Şehri çevreleyen demiryolu ve Loodos Express ---------- */
   // Köşeleri yuvarlatılmış halka; ana yolun ve ara sokakların bittiği yerin dışından geçer, hiçbir yolu kesmez.
-  const RAIL = { x0: X_MIN - 30, x1: X_MAX + 30, z0: -44, z1: 44, r: 14 };
+  const RAIL = { x0: X_MIN - 30, x1: X_MAX + 30, z0: -31, z1: 31, r: 12 };   // genel görünümde ekranın içinde kalır
   const track = new THREE.Path();
   track.moveTo(RAIL.x0 + RAIL.r, RAIL.z0);
   track.lineTo(RAIL.x1 - RAIL.r, RAIL.z0);
@@ -892,12 +912,14 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
     world.add(st);
   }
 
-  const train = { cars: [], s: stationS - 60, speed: 0, max: 11, state: "run", wait: 0, served: false };
-  {
-    const locoTex = wordTexture("loodos", { bg: "#1ab0ba", color: "#ffffff", sub: "EXPRESS", h: 200 });
-    const locoSide = new THREE.MeshStandardMaterial({ map: locoTex, roughness: .6, emissive: 0xffffff, emissiveMap: locoTex, emissiveIntensity: 0 });
-    signMats.push(locoSide);
-    const LEN_CAR = [7.2, 6.4, 6.4, 6.4];
+  // İki tren aynı yönde, halkanın iki yarısında; ikisi de istasyonda durur, aradaki mesafe korunur.
+  const trains = [];
+  const locoTex = wordTexture("loodos", { bg: "#1ab0ba", color: "#ffffff", sub: "EXPRESS", h: 200 });
+  const locoSide = new THREE.MeshStandardMaterial({ map: locoTex, roughness: .6, emissive: 0xffffff, emissiveMap: locoTex, emissiveIntensity: 0 });
+  signMats.push(locoSide);
+  function makeTrain(startS) {
+    const train = { cars: [], s: startS, speed: 0, max: 11, state: "run", wait: 0, served: false };
+    const LEN_CAR = [7.2, 6.4, 6.4, 6.4, 6.4];
     LEN_CAR.forEach((L, i) => {
       const g = new THREE.Group();
       for (const x of [-L / 2 + 1.3, L / 2 - 1.3]) box(g, 1.6, .45, 1.9, M.ink, x, .38, 0);
@@ -920,37 +942,60 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       world.add(g);
       train.cars.push({ g, back: LEN_CAR.slice(0, i).reduce((a, b) => a + b + .7, 0) + (L - LEN_CAR[0]) / 2 });
     });
+    trains.push(train);
   }
+  makeTrain(stationS - 60);
+  makeTrain(stationS - 60 - TRACK_LEN / 2);
   const tpos = {};
   function stepTrain(dt) {
-    // İstasyona yaklaşırken yavaşlar, 5 sn bekler, sonra yeniden hızlanır.
-    const ahead = ((stationS - train.s) % TRACK_LEN + TRACK_LEN) % TRACK_LEN;
-    let want = train.max;
-    if (train.state === "wait") {
-      want = 0;
-      train.wait -= dt;
-      if (train.wait <= 0) { train.state = "run"; train.served = true; }
-    } else if (!train.served && ahead < 30) {
-      want = Math.max(.6, train.max * ahead / 30);
-      if (ahead < .25) { train.state = "wait"; train.wait = 5; train.speed = 0; want = 0; }
-    }
-    if (train.served && ahead > 40 && ahead < TRACK_LEN - 40) train.served = false;
-    train.speed += (want - train.speed) * Math.min(1, dt * (want < train.speed ? 3 : .6));
-    train.s = (train.s + train.speed * dt) % TRACK_LEN;
-    for (const c of train.cars) {
-      trackAt(train.s - c.back, tpos);
-      c.g.position.set(tpos.x, 0, tpos.z);
-      c.g.rotation.y = tpos.yaw;
+    for (const train of trains) {
+      // İstasyona yaklaşırken yavaşlar, 5 sn bekler, sonra yeniden hızlanır.
+      const ahead = ((stationS - train.s) % TRACK_LEN + TRACK_LEN) % TRACK_LEN;
+      let want = train.max;
+      if (train.state === "wait") {
+        want = 0;
+        train.wait -= dt;
+        if (train.wait <= 0) { train.state = "run"; train.served = true; }
+      } else if (!train.served && ahead < 30) {
+        want = Math.max(.6, train.max * ahead / 30);
+        if (ahead < .25) { train.state = "wait"; train.wait = 5; train.speed = 0; want = 0; }
+      }
+      if (train.served && ahead > 40 && ahead < TRACK_LEN - 40) train.served = false;
+      train.speed += (want - train.speed) * Math.min(1, dt * (want < train.speed ? 3 : .6));
+      train.s = (train.s + train.speed * dt) % TRACK_LEN;
+      for (const c of train.cars) {
+        trackAt(train.s - c.back, tpos);
+        c.g.position.set(tpos.x, 0, tpos.z);
+        c.g.rotation.y = tpos.yaw;
+      }
     }
   }
 
-  /* ---------- SunExpress uçakları ---------- */
-  // SunExpress vakasına selam: gökyüzünde iki SunExpress uçağı döner; tıklanınca SunExpress dükkânı açılır.
+  /* ---------- Havalimanı ve SunExpress uçakları ---------- */
+  // SunExpress vakasına selam: Havacılık mahallesinin arkasındaki piste inip kalkan SunExpress uçakları.
+  // Tıklanınca SunExpress dükkânı açılır.
   const sunex = data.companies.find(c => c.id === "sunexpress");
+  const avi = districts.find(d => d.s.id === "avi");
+  const RWY = { x: avi ? avi.cx : 0, z: -52, len: 150 };
+  const GEAR_Y = 1.95;   // pistteyken gövde merkezinin yerden yüksekliği (uçak ölçeği dahil)
   const planes = [];
   const navRed = new THREE.MeshStandardMaterial({ color: 0x7a2020, emissive: 0xff3b30, emissiveIntensity: 0 });
   const navGreen = new THREE.MeshStandardMaterial({ color: 0x1f5a2c, emissive: 0x2bff6a, emissiveIntensity: 0 });
   const strobe = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0 });
+  {
+    const ap = new THREE.Group();
+    ap.position.set(RWY.x, 0, RWY.z);
+    world.add(ap);
+    plane(ap, RWY.len + 10, 9, mat(0x8f9aa1, { roughness: .95 }), 0, .03, 0);
+    plane(ap, 46, 15, mat(0xb9c2c6, { roughness: 1 }), -18, .03, -13);
+    plane(ap, 5, 6, mat(0xb9c2c6, { roughness: 1 }), -18, .031, -4.5);
+    for (let x = -RWY.len / 2 + 12; x < RWY.len / 2 - 10; x += 8) inst.dash.push(local(ap, x, .05, 0, 4, .02, .3));
+    for (const end of [-1, 1]) for (let k = -3; k <= 3; k++) inst.zebra.push(local(ap, end * (RWY.len / 2 - 2.5), .05, k * 1.1, 3.5, .02, .5));
+    for (let x = -RWY.len / 2; x <= RWY.len / 2; x += 10) for (const z of [-4.7, 4.7]) inst.bulb.push(local(ap, x, .05, z, .3, .2, .3));
+    cyl(ap, .9, 1.2, 10, M.wall2, 14, 0, -14);
+    cyl(ap, 2, 1.6, 1.8, M.glassDark, 14, 10, -14);
+    cyl(ap, 2.2, 2.2, .3, M.teal, 14, 11.8, -14);
+  }
   if (sunex) {
     const cv = document.createElement("canvas");
     cv.width = 512; cv.height = 96;
@@ -979,13 +1024,20 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       for (const z of [-2.3, 2.3]) part(g, new THREE.CylinderGeometry(.32, .3, 1.5, 14).rotateZ(Math.PI / 2), belly, .9, -.55, z);
       part(g, new THREE.BoxGeometry(1.1, .1, 3.6), fuse, -4.7, .25, 0);
       part(g, finGeo, finMat, 0, 0, 0);
+      for (const [gx, gz] of [[2.6, 0], [-.2, -.85], [-.2, .85]]) part(g, new THREE.BoxGeometry(.18, .5, .18), M.ink, gx, -.83, gz);
       for (const z of [-.09, .09]) {
         const disc = part(g, new THREE.CircleGeometry(.5, 24), sunMat, -4.75, 1.85, z);
         disc.rotation.y = z < 0 ? Math.PI : 0;
         disc.castShadow = false;
-        const decal = part(g, new THREE.PlaneGeometry(3.4, .64), logoMat, .6, .08, z < 0 ? -.63 : .63);
+        const decal = part(g, new THREE.PlaneGeometry(4.4, .8), logoMat, .5, .1, z < 0 ? -.63 : .63);
         decal.rotation.y = z < 0 ? Math.PI : 0;
         decal.castShadow = false;
+      }
+      // Yukarıdan bakışta okunsun diye logo kanatların üstünde de var
+      for (const z of [-2.9, 2.9]) {
+        const wing = part(g, new THREE.PlaneGeometry(4.2, .82), logoMat, .3, -.115, z);
+        wing.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+        wing.castShadow = false;
       }
       part(g, new THREE.BoxGeometry(.3, .16, .2), navRed, .3, -.2, -5.05);
       part(g, new THREE.BoxGeometry(.3, .16, .2), navGreen, .3, -.2, 5.05);
@@ -997,22 +1049,67 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       pickables.push(g);
       return g;
     }
-    const avi = districts.find(d => d.s.id === "avi");
-    planes.push({ g: planeMesh(), cx: avi ? avi.cx : 0, cz: 0, rx: 72, rz: 46, y: 30, dir: 1, a: 0, w: 16 / 60 });
-    planes.push({ g: planeMesh(), cx: 0, cz: 0, rx: LEN / 2 + 30, rz: 78, y: 44, dir: -1, a: 2, w: 18 / (LEN / 2 + 54) });
+    // Apronda bekleyen uçak
+    const parked = planeMesh();
+    parked.position.set(RWY.x - 22, GEAR_Y, RWY.z - 13);
+    parked.rotation.set(0, .5, 0);
+
+    // Trafik paterni: batıdan alçalıp piste iner, pistin ortasında durur, kalan pistte hızlanıp kalkar,
+    // şehrin etrafında güneyden dolaşıp yeniden son yaklaşmaya girer. Noktalar pist yönüne (doğu) göre.
+    const X = RWY.x, Z = RWY.z;
+    const west = Math.min(X_MIN - 40, X - 330), east = Math.max(X_MAX + 40, X + 260);
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const pts = [
+      V(X - 230, 32, Z), V(X - 160, 18, Z), V(X - 108, 6, Z),
+      V(X - 64, 0, Z), V(X - 25, 0, Z), V(X + 8, 0, Z), V(X + 42, 0, Z),
+      V(X + 74, 2, Z), V(X + 130, 15, Z), V(X + 195, 30, Z + 18),
+      V(east, 42, 22), V(east - 40, 46, 88), V(0, 48, 108), V(west + 40, 46, 88),
+      V(west, 42, 25), V(west + 20, 38, Z - 22), V(X - 290, 35, Z - 3),
+    ];
+    const route = new THREE.CatmullRomCurve3(pts, true, "centripetal");
+    route.arcLengthDivisions = 3000;
+    const ROUTE_LEN = route.getLength();
+    const sOf = target => {   // rotadaki en yakın noktanın yay uzunluğu
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < 3000; i++) { const d = route.getPointAt(i / 3000).distanceToSquared(target); if (d < bd) { bd = d; best = i / 3000; } }
+      return best * ROUTE_LEN;
+    };
+    const touchS = sOf(pts[3]), stopS = sOf(V(X + 2, 0, Z)), liftS = sOf(pts[7]);
+    const rel = s => ((s - touchS) % ROUTE_LEN + ROUTE_LEN) % ROUTE_LEN;
+    const STOP_REL = rel(stopS), LIFT_REL = rel(liftS);
+    const flight = { route, ROUTE_LEN, rel, STOP_REL, LIFT_REL };
+    for (const s0 of [ROUTE_LEN * .45, ROUTE_LEN * .95]) {
+      planes.push({ g: planeMesh(), s: s0, speed: 22, wait: 0, served: false, yaw: null, roll: 0, flight });
+    }
   }
+  const pp = new THREE.Vector3(), pt = new THREE.Vector3();
   function stepPlanes(dt) {
-    const blink = (t % 1.3) < .1;
-    strobe.emissiveIntensity = blink ? 3 : 0;
+    strobe.emissiveIntensity = (t % 1.3) < .1 ? 3 : 0;
     for (const p of planes) {
-      p.a += p.dir * p.w * dt;
-      const x = p.cx + p.rx * Math.cos(p.a), z = p.cz + p.rz * Math.sin(p.a);
-      const dx = -p.rx * Math.sin(p.a) * p.dir, dz = p.rz * Math.cos(p.a) * p.dir;
-      const yaw = Math.atan2(-dz, dx);
-      // İç kanat aşağıda: dönüşün merkezine doğru yatış
-      const inward = Math.sign(Math.sin(yaw) * (p.cx - x) + Math.cos(yaw) * (p.cz - z)) || 1;
-      p.g.position.set(x, p.y + Math.sin(p.a * 2) * 1.5, z);
-      p.g.rotation.set(.28 * inward, yaw, 0);
+      const { route, ROUTE_LEN, rel, STOP_REL, LIFT_REL } = p.flight;
+      const r = rel(p.s);
+      let want = 22;
+      if (p.wait > 0) { want = 0; p.wait -= dt; if (p.wait <= 0) p.served = true; }
+      else if (r > ROUTE_LEN - 130) want = 15;                                   // son yaklaşma
+      else if (r < STOP_REL && !p.served) {                                       // iniş koşusu
+        want = Math.max(1.2, 15 * (STOP_REL - r) / STOP_REL);
+        if (STOP_REL - r < .3) { p.wait = 6; p.speed = 0; want = 0; }
+      } else if (r < LIFT_REL) want = 4 + 22 * (r - STOP_REL) / Math.max(1, LIFT_REL - STOP_REL);   // kalkış koşusu
+      if (p.served && r > LIFT_REL && r < ROUTE_LEN - 140) p.served = false;
+      p.speed += (want - p.speed) * Math.min(1, dt * (want < p.speed ? 2.2 : 1));
+      if (p.wait > 0) p.speed = 0;
+      p.s = (p.s + p.speed * dt) % ROUTE_LEN;
+      const u = p.s / ROUTE_LEN;
+      route.getPointAt(u, pp);
+      route.getTangentAt(u, pt);
+      const yaw = Math.atan2(-pt.z, pt.x);
+      const turn = p.yaw == null ? 0 : Math.atan2(Math.sin(yaw - p.yaw), Math.cos(yaw - p.yaw)) / Math.max(dt, 1e-3);
+      p.yaw = yaw;
+      const alt = Math.max(0, pp.y);
+      // Dönüşte iç kanat aşağı; yerde yatış yok
+      p.roll += (THREE.MathUtils.clamp(-turn * .9, -.45, .45) * Math.min(1, alt / 8) - p.roll) * Math.min(1, dt * 2);
+      p.g.position.set(pp.x, GEAR_Y + alt, pp.z);
+      p.g.rotation.set(p.roll, yaw, alt > .2 ? Math.asin(THREE.MathUtils.clamp(pt.y, -.5, .5)) : 0);
     }
   }
 
@@ -1022,7 +1119,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   const ambRed = mat(0xe5484d, { roughness: .5 });
   const flashR = new THREE.MeshStandardMaterial({ color: 0xff2d2d, emissive: 0xff2d2d, emissiveIntensity: .2 });
   const flashB = new THREE.MeshStandardMaterial({ color: 0x2d6bff, emissive: 0x2d6bff, emissiveIntensity: .2 });
-  const amb = { id: "hotfix", mesh: new THREE.Group(), state: "idle", timer: 14, x: 0, dir: 1, speed: 0, target: null, mission: null,
+  const amb = { id: "hotfix", mesh: new THREE.Group(), state: "idle", timer: 45, x: 0, dir: 1, speed: 0, target: null, mission: null,
     stats: { opened: 0, resolved: 0, fixMin: 0, respMin: 0 }, seq: 4800 + Math.floor(Math.random() * 300) };
   {
     const g = amb.mesh;
@@ -1127,7 +1224,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       }
       if (amb.state === "leaving" && (amb.x > X_MAX + 16 || amb.x < X_MIN - 16)) {
         amb.state = "idle";
-        amb.timer = rand(28, 55);
+        amb.timer = rand(100, 160);
         amb.mesh.visible = false;
         amb.label.visible = false;
         if (follow === amb) follow = null;
@@ -1300,6 +1397,27 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       el.classList.toggle("pointing", !!p);
     });
   });
+  // Trackpad'de iki parmakla zoom tarayıcıdan ctrlKey'li, çok küçük tekerlek adımlarıyla gelir; adımı büyütüp yeniden gönderilir.
+  el.addEventListener("wheel", e => {
+    if (!e.ctrlKey || e.boosted) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const boosted = new WheelEvent("wheel", { deltaY: e.deltaY * 7, deltaMode: e.deltaMode, clientX: e.clientX, clientY: e.clientY, bubbles: true, cancelable: true });
+    boosted.boosted = true;
+    renderer.domElement.dispatchEvent(boosted);
+  }, { capture: true, passive: false });
+  // Safari (macOS) trackpad zoom'u tekerlek yerine gesture olaylarıyla verir. Dokunmatikte OrbitControls zaten yakalar.
+  if (!matchMedia("(pointer: coarse)").matches) {
+    let z0 = null;
+    el.addEventListener("gesturestart", e => { e.preventDefault(); z0 = camera.zoom; fly = null; });
+    el.addEventListener("gesturechange", e => {
+      e.preventDefault();
+      if (z0 == null) return;
+      camera.zoom = THREE.MathUtils.clamp(z0 * Math.pow(e.scale, 1.6), controls.minZoom, controls.maxZoom);
+      camera.updateProjectionMatrix();
+    });
+    el.addEventListener("gestureend", e => { e.preventDefault(); z0 = null; });
+  }
   controls.addEventListener("start", () => { fly = null; follow = null; el.classList.add("grabbing"); });
   controls.addEventListener("end", () => el.classList.remove("grabbing"));
 
@@ -1364,7 +1482,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       camera.position.copy(controls.target).add(off);
     }
     controls.target.x = THREE.MathUtils.clamp(controls.target.x, X_MIN, X_MAX);
-    controls.target.z = THREE.MathUtils.clamp(controls.target.z, -40, 40);
+    controls.target.z = THREE.MathUtils.clamp(controls.target.z, -60, 45);
     controls.target.y = 0;
     controls.update();
     el.classList.toggle("far", camera.zoom < 1.05);
@@ -1480,7 +1598,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       const rem = v.dest ? Math.max(0, (v.dest.x - v.x) * v.dir) : null;
       const total = v.dest ? Math.max(1, (v.dest.x - v.from) * v.dir) : 1;
       return {
-        id: v.id, type: typeName(v.type), delivers: v.delivers, prod: v.prod ? { id: v.prod.id, name: v.prod.name, mono: v.prod.mono } : null, state: v.state, dest: v.dest?.c, sector: v.dest?.s,
+        id: v.id, type: typeName(v.type) + (v.mesh.userData.model ? " · " + v.mesh.userData.model : ""), delivers: v.delivers, prod: v.prod ? { id: v.prod.id, name: v.prod.name, mono: v.prod.mono } : null, state: v.state, dest: v.dest?.c, sector: v.dest?.s,
         speedKmh: Math.round(v.speed * 6.2), etaSec: rem == null ? null : v.state === "unloading" ? 0 : Math.round(rem / Math.max(v.base, .1) + 1.5),
         progress: v.dest ? 1 - rem / total : 0, cargo: v.cargo, ship: v.ship, unloadLeft: v.state === "unloading" ? Math.ceil(v.timer) : 0,
       };
