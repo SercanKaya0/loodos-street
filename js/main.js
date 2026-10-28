@@ -43,7 +43,8 @@ const ICON = {
 };
 
 // Sahne kurulamazsa (WebGL yok, GPU kara listede) arayüz bu boş sahneyle liste görünümünde çalışır.
-const NO_STREET = { select() {}, highlight() {}, focusSector() {}, home() {}, zoomBy() {}, rotateBy() {}, intro() {}, setNight() {}, setWeather() {}, setClock() {}, setEvent() {}, setLead() {}, setLabelsAll() {}, vehicleInfo: () => null, ambulanceInfo: () => null };
+const NO_STREET = { select() {}, highlight() {}, focusSector() {}, home() {}, zoomBy() {}, rotateBy() {}, intro() {}, setNight() {}, setWeather() {}, setClock() {}, setEvent() {}, setLead() {}, setLabelsAll() {},
+  startWalk() {}, stopWalk() {}, isWalking: () => false, setKey() {}, vehicleInfo: () => null, ambulanceInfo: () => null };
 const siren = createSiren(prefs.get("ls.sound") !== "off");
 let street = NO_STREET;
 let ctx = { kind: "all" };        // KPI ve panel bağlamı
@@ -445,7 +446,7 @@ function renderFeed() {
   $("#feed").innerHTML = `<h4>${t("feed")}</h4>` + (feed.length
     ? feed.map((e, i) => `<button data-ev="${i}"><span class="ev-ico">${ICON.truck.replace("<svg", '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"')}</span><span>${esc(e.text)}<small>${esc(e.sub)} · ${time(e.at)}</small></span></button>`).join("")
     : `<p class="empty">${esc(t("feed.empty"))}</p>`);
-  $("#feed").querySelectorAll("[data-ev]").forEach(b => b.addEventListener("click", () => { closeMenus(); openCompany(feed[+b.dataset.ev].company); }));
+  $("#feed").querySelectorAll("[data-ev]").forEach(b => b.addEventListener("click", () => { closeMenus(); const c = feed[+b.dataset.ev].company; if (c) openCompany(c); }));
 }
 
 /* ---------- Liste görünümü (WebGL yoksa) ---------- */
@@ -669,6 +670,32 @@ function togglePause() {
   $("#prToggle").setAttribute("aria-label", t(presenter.paused ? "pr.play" : "pr.pause"));
 }
 
+/* ---------- Sokakta yürüme ---------- */
+function openWalkModal() {
+  closeMenus();
+  stopPresentation();
+  $("#walkName").value = prefs.get("ls.name") || "";
+  $("#walkModal").hidden = false;
+  setTimeout(() => $("#walkName").focus(), 30);
+}
+function startWalk(name) {
+  $("#walkModal").hidden = true;
+  prefs.set("ls.name", name);
+  app.classList.add("walking");
+  $("#walkHud").hidden = false;
+  $("#walkHudText").textContent = t("walk.hud", { name });
+  $("#dpad").hidden = !matchMedia("(pointer: coarse)").matches;
+  $("#walkBtn span").textContent = t("walk.exit");
+  street.startWalk(name);
+}
+function stopWalk() {
+  street.stopWalk();
+  app.classList.remove("walking");
+  $("#walkHud").hidden = true;
+  $("#dpad").hidden = true;
+  $("#walkBtn span").textContent = t("walk.btn");
+}
+
 let labelsAll = prefs.get("ls.labels") === "on";
 function syncLabels() {
   const b = $('[data-action="labels"]');
@@ -749,6 +776,19 @@ function wireUi() {
     else if (b) setWeatherMode(b.dataset.weather);
   });
   $("#langBtn").addEventListener("click", () => setLang(lang === "tr" ? "en" : "tr"));
+  $("#walkBtn").addEventListener("click", () => (street.isWalking() ? stopWalk() : openWalkModal()));
+  $("#walkExit").addEventListener("click", stopWalk);
+  $("#walkCancel").addEventListener("click", () => { $("#walkModal").hidden = true; });
+  $("#walkForm").addEventListener("submit", e => {
+    e.preventDefault();
+    startWalk($("#walkName").value.trim().slice(0, 20) || t("walk.anon"));
+  });
+  // Dokunmatik yön tuşları: basılı tutuldukça yürür
+  $("#dpad").querySelectorAll("[data-k]").forEach(b => {
+    const on = v => e => { e.preventDefault(); street.setKey(b.dataset.k, v); };
+    b.addEventListener("pointerdown", on(true));
+    for (const ev of ["pointerup", "pointerleave", "pointercancel"]) b.addEventListener(ev, on(false));
+  });
   syncSound();
   syncLabels();
 
@@ -798,6 +838,9 @@ function wireUi() {
       if (e.key === " ") { e.preventDefault(); togglePause(); return; }
     }
     if (e.key === "/" && document.activeElement !== $("#q")) { e.preventDefault(); $("#q").focus(); }
+    if (e.key === "Escape" && !$("#walkModal").hidden) { $("#walkModal").hidden = true; return; }
+    if (e.key === "Escape" && street.isWalking() && panel.hidden) { stopWalk(); return; }
+    if (street.isWalking() && /^[wasd]$/i.test(e.key) && document.activeElement?.tagName !== "INPUT") return;
     if (e.key === "Escape" && document.activeElement !== $("#q")) { closeMenus(); if (!panel.hidden) { closePanel(); street.select(null); ctx = { kind: "all" }; setJourneyFor(null); renderKpis(); } }
   });
   app.addEventListener("click", e => {

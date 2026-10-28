@@ -1625,6 +1625,115 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     return dirty;
   }
 
+  /* ---------- Sokakta yürüme (WASD / ok tuşları) ---------- */
+  // Ziyaretçi isimli bir karakterle sokakta gezer; bir kapıya yürüyünce o yerin paneli açılır.
+  const walker = { on: false, name: "", g: new THREE.Group(), keys: new Set(), cool: 0, phase: 0, bubbleT: 0 };
+  walker.mesh = walker.g;   // kamera takibi (follow) .mesh.position bekler
+  {
+    const g = walker.g;
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.27, .64, 4, 10), mat(0x1ab0ba, { roughness: .6 }));
+    body.position.y = .64; body.castShadow = true;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.22, 12, 10), mat(0xe8c4a0));
+    head.position.y = 1.36; head.castShadow = true;
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(.235, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x2a2f36));
+    hair.position.y = 1.4;
+    g.add(body, head, hair);
+    box(g, .22, .4, .36, M.ink, -.3, .55, 0);                  // sırt çantası
+    const ring = new THREE.Mesh(new THREE.RingGeometry(.45, .6, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: C.teal, transparent: true, opacity: .8, depthWrite: false }));
+    ring.position.y = .02;
+    g.add(ring);
+    const mk = (cls, y) => {
+      const wrap = document.createElement("div");
+      wrap.className = "lbl";
+      const d = document.createElement("div");
+      d.className = cls;
+      wrap.appendChild(d);
+      const o = new CSS2DObject(wrap);
+      o.position.set(0, y, 0);
+      g.add(o);
+      return d;
+    };
+    walker.tag = mk("me-tag", 2.05);
+    walker.bubble = mk("bubble", 2.55);
+    g.visible = false;
+    world.add(g);
+  }
+  // Girilebilir yerler: dükkânlar (kapı yola bakar), Loodos merkezi, şantiye arsası, Loodos LOOT
+  const doors = [
+    ...[...companies.entries()].map(([id, c]) => ({ kind: "company", id, name: c.lot.c.name, x: c.lot.x, z: c.lot.side * LOT_Z, hx: 4.8, hz: 4.2 })),
+    { kind: "hq", id: "loodos", name: "Loodos", x: hqX, z: -LOT_Z - 1, hx: 8.5, hz: 5.8 },
+    { kind: "lead", id: "lead", name: tt("lead.name"), x: leadLot.x, z: -LOT_Z, hx: 5.5, hz: 5.6 },
+    { kind: "loot", id: "loot", name: "Loodos LOOT", x: leadLot.x, z: LOT_Z, hx: 4.3, hz: 3.5 },
+  ];
+  const WALK_KEYS = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", "shift"];
+  addEventListener("keydown", e => {
+    if (!walker.on || e.target.closest?.("input, textarea")) return;
+    const key = e.key.toLowerCase();
+    if (WALK_KEYS.includes(key)) { walker.keys.add(key); e.preventDefault(); }
+  });
+  addEventListener("keyup", e => walker.keys.delete(e.key.toLowerCase()));
+  addEventListener("blur", () => walker.keys.clear());
+  function sayWalker(text, sec = 3.5) {
+    walker.bubble.textContent = text;
+    walker.bubble.classList.add("show");
+    walker.bubbleT = sec;
+  }
+  function enterDoor(d) {
+    walker.cool = 1.5;
+    sayWalker(tt("walk.hello", { name: walker.name, shop: d.name }));
+    notify({ kind: "visit", company: d.kind === "company" ? d.id : d.kind === "lead" ? "lead" : null, text: tt("walk.feed", { name: walker.name, shop: d.name }), sub: tt("walk.sub"), at: new Date() });
+    if (d.kind === "loot") extras.rollD20();
+    else select(d.kind, d.id, true);
+    selRing.visible = false;
+  }
+  const fwd = new THREE.Vector3(), right = new THREE.Vector3(), dir = new THREE.Vector3();
+  function stepWalk(dt) {
+    if (walker.bubbleT > 0 && (walker.bubbleT -= dt) <= 0) walker.bubble.classList.remove("show");
+    if (!walker.on) return;
+    const k = walker.keys, p = walker.g.position;
+    const f = (k.has("w") || k.has("arrowup") ? 1 : 0) - (k.has("s") || k.has("arrowdown") ? 1 : 0);
+    const r = (k.has("d") || k.has("arrowright") ? 1 : 0) - (k.has("a") || k.has("arrowleft") ? 1 : 0);
+    const moving = f !== 0 || r !== 0;
+    if (moving) {
+      // W ekranda yukarı: kameranın yere izdüşen bakış yönü
+      fwd.subVectors(controls.target, camera.position).setY(0).normalize();
+      right.set(-fwd.z, 0, fwd.x);
+      dir.copy(fwd).multiplyScalar(f).addScaledVector(right, r).normalize();
+      const sp = (k.has("shift") ? 11 : 6) * dt;
+      p.x = THREE.MathUtils.clamp(p.x + dir.x * sp, X_MIN - 8, X_MAX + 8);
+      p.z = THREE.MathUtils.clamp(p.z + dir.z * sp, -24, 24);
+      walker.g.rotation.y = Math.atan2(-dir.z, dir.x);
+      walker.phase += dt * (k.has("shift") ? 15 : 10);
+      if (!follow && !fly) follow = walker;
+    }
+    p.y = .18 + (moving ? Math.abs(Math.sin(walker.phase)) * .08 : 0);
+    if ((walker.cool -= dt) > 0) return;
+    const d = doors.find(d => Math.abs(p.x - d.x) < d.hx && Math.abs(p.z - d.z) < d.hz);
+    if (d) {
+      enterDoor(d);
+      p.z = d.z - Math.sign(d.z) * (d.hz + .4);   // içeri girip kapının önüne geri çıkar
+    }
+  }
+  function startWalk(name) {
+    walker.name = name;
+    walker.tag.textContent = name;
+    walker.on = true;
+    walker.keys.clear();
+    walker.g.position.set(hqX + 4, .18, LOT_Z - 8.7);
+    walker.g.visible = true;
+    select(null);
+    const zoom = Math.max(camera.zoom, 2.3);
+    flyTo(framed(walker.g.position.clone().setY(0), zoom), zoom, 900);
+    setTimeout(() => { if (walker.on && !fly) follow = walker; }, 950);
+    sayWalker(tt("walk.hi", { name }), 4);
+  }
+  function stopWalk() {
+    walker.on = false;
+    walker.keys.clear();
+    walker.g.visible = false;
+    if (follow === walker) follow = null;
+  }
+
   /* ---------- Gündüz / gece ---------- */
   let night = 0, nightTarget = 0;
   const tmpC = new THREE.Color();
@@ -1760,6 +1869,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       w.g.rotation.y = w.dir > 0 ? 0 : Math.PI;
     }
     stepTrain(dt);
+    stepWalk(dt);
     const ambSound = stepAmbulance(dt);
     stepDesk();
     extras.step(dt, t, { night, wx });
@@ -1797,6 +1907,9 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     select, highlight, focusSector, home, setNight, setWeather, setClock,
     setEvent: (kind, info) => extras.setEvent(kind, info),
     setLabelsAll(on) { labelsAll = !!on; },
+    startWalk, stopWalk,
+    isWalking: () => walker.on,
+    setKey(key, on) { if (on) walker.keys.add(key); else walker.keys.delete(key); },
     // Ziyaretçinin seçtiği ürünler: parsel o ürünlerin müşterisi olur, bina kat kat yükselir, boştaki kamyonlar yola çıkar
     setLead(ids) {
       leadLot.c.projects[0].prods = ids.map(id => ({ id }));

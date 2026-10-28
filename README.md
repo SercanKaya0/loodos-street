@@ -6,6 +6,7 @@ Loodos'un müşteri projelerini izometrik bir sokakta gezdiren etkileşimli hari
 - Dil: sağ üstteki TR/EN düğmesi ya da `?lang=en`. Arayüz metinleri `js/i18n.js`'te.
 - Görünüm: Otomatik (saate göre gündüz/gece), Gündüz, Gece ve Gün döngüsü (24 saat 2 dakikada). Gece lambalar, vitrinler, pencereler ve farlar yanar.
 - Araçlar: her kamyon/panelvan bir Loodos ürünü taşır ve yalnızca o ürünü kullanan dükkânlara teslimat yapar.
+- Sokağa gir: üst bardaki düğmeyle isim girip karakterle yürünür (WASD / ok tuşları, Shift ile koşu, dokunmatikte yön tuşları). Kapıya yürüyünce dükkânın paneli açılır, ziyaret canlı akışa düşer; Esc ile çıkılır.
 - Sunum modu: sağ alttaki ekran düğmesi ya da `#sunum`. Merkez → mahalleler → dükkânlar sırayla gezilir; ← → ileri/geri, boşluk duraklat, Esc bitir.
 - Şehir: etrafında ray halkası ve istasyonda duran iki Loodos Express treni, Havacılık mahallesinin arkasındaki piste inip kalkan SunExpress uçakları (tıklanınca SunExpress açılır), tepesinde Loodos bayrağı olan elektrik direkleri, Brific Crimson/Bianco/Marine scooter'ları.
 - Gazeteci çocuk: kaldırımda yürür, "📰 Yeni release! … yayında" manşetlerini balonla duyurur, dükkâna gazete fırlatır; manşetler canlı akışa düşer.

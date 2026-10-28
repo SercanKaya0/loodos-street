@@ -53,6 +53,8 @@
 
       <div class="live" data-i18n-title="live.title"><i></i><span data-i18n="live"></span> <time id="clock">--:--</time><span id="wx" class="wx"></span></div>
 
+      <button id="walkBtn" class="walk-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="m9 21 2-6 3 3v3M7 12l3-4 4 1 3 3M10 8l-1 5"/></svg><span data-i18n="walk.btn"></span></button>
+
       <button id="langBtn" class="icon-btn lang-btn" data-i18n="lang.btn" data-i18n-aria="lang.aria"></button>
 
       <div class="theme-wrap">
@@ -104,6 +106,23 @@
     </footer>
 
     <p class="hint" data-i18n="hint"></p>
+
+    <div id="walkHud" class="walk-hud" hidden>
+      <span class="me-dot"></span><span id="walkHudText"></span>
+      <button class="cta ghost" id="walkExit" data-i18n="walk.exit"></button>
+    </div>
+    <div id="dpad" class="dpad" hidden>
+      <button data-k="w" aria-label="↑">▲</button><button data-k="a" aria-label="←">◀</button><button data-k="s" aria-label="↓">▼</button><button data-k="d" aria-label="→">▶</button>
+    </div>
+    <div id="walkModal" class="modal" hidden>
+      <form class="modal-card" id="walkForm">
+        <h2 data-i18n="walk.title"></h2>
+        <label for="walkName" data-i18n="walk.ask"></label>
+        <input id="walkName" maxlength="20" autocomplete="nickname" data-i18n-ph="walk.ph">
+        <p data-i18n="walk.help"></p>
+        <div class="modal-actions"><button type="button" class="cta ghost" id="walkCancel" data-i18n="walk.cancel"></button><button type="submit" class="cta" data-i18n="walk.go"></button></div>
+      </form>
+    </div>
 
     <div id="presenter" class="presenter" role="region" hidden>
       <div class="pr-info"><span class="pr-badge" data-i18n="pr.title"></span><b id="prTitle"></b><small id="prCount"></small></div>
