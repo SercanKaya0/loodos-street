@@ -1400,6 +1400,90 @@ export function buildExtras(k) {
     });
   }
 
+  // Loodos LOOT: isimden esinlenen küçük manga dükkânı ve D&D kulübü. Çatıda dev d20; tıklayınca zar atılır.
+  {
+    const g = new THREE.Group();
+    g.position.set(leadX, 0, LOT_Z);
+    g.rotation.y = Math.PI;                       // yerel +z yola bakar
+    world.add(g);
+    const violet = mat(0x5446fc, { roughness: .5 }), W = 8.6, D = 7, H = 4.4;
+    plane(g, 11, 11.4, M.walk, 0, .045, .3);
+    box(g, W, H, D, M.wall);
+    box(g, W - 1, 2.5, .12, M.glass, 0, .25, D / 2 + .02);
+    box(g, 1.3, 2.3, .14, M.glassDark, 2.6, .25, D / 2 + .05);
+    // Vitrinde manga kapakları
+    [0xd6457a, 0xf2b134, 0x1ab0ba, 0x15191d, 0xff7a3a, 0x5446fc].forEach((c, i) => box(g, .55, .8, .04, mat(c, { roughness: .6 }), -3.1 + i * .62 - (i > 2 ? 0 : 0), .9 + (i % 2) * .25, D / 2 + .1, false));
+    const aw = box(g, W - .3, .28, 1.6, violet, 0, 2.95, D / 2 + .7);
+    aw.rotation.x = .22;
+    box(g, W + .2, .4, D + .2, M.roof, 0, H, 0);
+    const { ctx, tex } = canvasTex(1024, 320);
+    ctx.fillStyle = "#16123a"; ctx.fillRect(0, 0, 1024, 320);
+    ctx.fillStyle = "#5446fc"; ctx.fillRect(0, 286, 1024, 34);
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#bdb6ff"; ctx.font = `700 46px "Red Hat Display"`; ctx.fillText("loodos", 512, 76);
+    ctx.fillStyle = "#ffffff"; ctx.font = `800 132px "Red Hat Display"`; ctx.fillText("LOOT", 512, 196);
+    ctx.fillStyle = "#ffd36b"; ctx.font = `700 40px "Red Hat Display"`; ctx.fillText("MANGA · D&D CLUB", 512, 262);
+    tex.needsUpdate = true;
+    const face = emissiveFace(tex);
+    const sign = new THREE.Mesh(BOX, [violet, violet, violet, violet, face, face]);
+    sign.scale.set(5.6, 1.75, .25);
+    sign.position.set(0, 3.95, D / 2 + .14);
+    g.add(sign);
+    // Çatıda dev d20
+    const d20 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 0), new THREE.MeshStandardMaterial({ color: 0x5446fc, roughness: .35, metalness: .1, flatShading: true, emissive: 0x2a1f9a, emissiveIntensity: .25 }));
+    d20.position.set(0, H + 2.4, -.5);
+    d20.castShadow = true;
+    g.add(d20);
+    box(g, 1.6, .3, 1.6, M.ink, 0, H + .4, -.5);
+    // Masa başında oyuncular; biri büyücü şapkalı
+    const tableZ = D / 2 + 3;
+    cyl(g, .95, .95, .08, mat(0x8a6a48, { roughness: .8 }), -1.6, .72, tableZ, 20);
+    cyl(g, .1, .14, .72, M.ink, -1.6, 0, tableZ, 8);
+    const players = [];
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * Math.PI * 2 + .4, x = -1.6 + Math.cos(a) * 1.35, z = tableZ + Math.sin(a) * 1.05;
+      players.push(person(g, x, .1, z, true));
+      if (i === 0) {
+        const hat = new THREE.Mesh(new THREE.ConeGeometry(.24, .6, 10), violet);
+        hat.position.set(x, 1.4, z); g.add(hat);
+      }
+    }
+    const dieMat = mat(0xffffff, { roughness: .4, flatShading: true });
+    const dice = [0, 1, 2].map(i => { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.11, 0), dieMat); m.position.set(-1.9 + i * .3, .88, tableZ - .1 + (i % 2) * .2); g.add(m); return m; });
+    g.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "loot", id: "loot" }; });
+    pickables.push(g);
+    // Masanın üstünde ara sıra balon; tıklanınca d20 sonucu
+    const wrap = document.createElement("div");
+    wrap.className = "lbl";
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    wrap.appendChild(bubble);
+    const bub = new CSS2DObject(wrap);
+    bub.position.set(-1.6, 2.4, tableZ);
+    g.add(bub);
+    let roll = 0, chatT = 3;
+    function rollD20() {
+      roll = 1.6;
+      const n = 1 + Math.floor(Math.random() * 20);
+      bubble.textContent = `🎲 d20: ${n}${n === 20 ? " · " + tt("loot.crit") : n === 1 ? " · " + tt("loot.fail") : ""}`;
+      bubble.classList.add("show");
+      chatT = 5;
+    }
+    k.rollD20 = rollD20;
+    pinLabel(g, 10.5, `<span class="pin-logo" style="background:#5446fc;color:#fff;font:800 12px var(--f-display)">d20</span><span class="pin-name">Loodos LOOT<small>Manga · D&D</small></span>`, "#5446fc", rollD20);
+    anim.push((dt, t) => {
+      d20.rotation.y += dt * (roll > 0 ? 14 : .5);
+      d20.rotation.x += dt * (roll > 0 ? 9 : .2);
+      if (roll > 0) roll -= dt;
+      for (const d of dice) d.rotation.y += dt * 2;
+      players.forEach((p, i) => { p[1].position.y = .1 + .95 + Math.abs(Math.sin(t * 2 + i)) * .03; });
+      if ((chatT -= dt) <= 0) {
+        if (bubble.classList.contains("show")) { bubble.classList.remove("show"); chatT = rand(3, 6); }
+        else { bubble.textContent = pick(tt("loot.chat")); bubble.classList.add("show"); chatT = 4.5; }
+      }
+    });
+  }
+
   /* ================= Kare ve gece ================= */
   let lit = 0;
   function applyNight(l) {
@@ -1494,5 +1578,5 @@ export function buildExtras(k) {
     }
   }
 
-  return { step, applyNight, setEvent, setLead, note, seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
+  return { step, applyNight, setEvent, setLead, note, rollD20: () => k.rollD20?.(), seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
 }

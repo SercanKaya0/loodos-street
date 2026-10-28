@@ -1518,7 +1518,8 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   renderer.domElement.addEventListener("pointerup", e => {
     if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
     const p = hit(e);
-    if (p) select(p.kind, p.id, true);
+    if (p?.kind === "loot") extras.rollD20();   // manga & D&D dükkânı: tıklayınca dev zar atılır
+    else if (p) select(p.kind, p.id, true);
   });
   let hoverQueued = false, lastMove = null;
   renderer.domElement.addEventListener("pointermove", e => {
