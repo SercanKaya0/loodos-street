@@ -402,6 +402,8 @@ svg { display: block; }
 }
 .bubble::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: var(--pin-bg); }
 .bubble.show { opacity: 1; transform: translate(-50%, 0); }
+.bubble.news { background: #fff4c2; color: #3a2a00; border: 1px solid #f2c94c; font-weight: 700; }
+.bubble.news::after { border-top-color: #fff4c2; }
 .stage.far .bubble { display: none; }
 
 /* Mégane'ın plaka etiketi: gerçek TR plakası görünümünde */

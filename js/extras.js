@@ -467,6 +467,76 @@ export function buildExtras(k) {
     });
   }
 
+  // Gazeteci çocuk: kaldırımda yürür, "Yeni release!" manşetlerini balonla duyurur, dükkânlara gazete fırlatır.
+  {
+    const releases = data.companies.flatMap(c => c.projects.map(p => ({ id: c.id, name: c.name + (p.app && p.app.length < 16 ? " " + p.app : "") })));
+    const lotOf = id => companies.get(id)?.lot;
+    const kid = new THREE.Group();
+    const cap = mat(0xe5484d, { roughness: .6 });
+    const bodyK = new THREE.Mesh(new THREE.CapsuleGeometry(.19, .38, 4, 8), mat(0x3a6ea5, { roughness: .8 }));
+    bodyK.position.y = .42; bodyK.castShadow = true;
+    const headK = new THREE.Mesh(new THREE.SphereGeometry(.17, 10, 8), mat(0xe8c4a0));
+    headK.position.y = .9;
+    const capTop = new THREE.Mesh(new THREE.SphereGeometry(.18, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), cap);
+    capTop.position.y = .94;
+    kid.add(bodyK, headK, capTop);
+    box(kid, .16, .03, .2, cap, .14, .93, 0, false);                 // kasket siperi
+    box(kid, .12, .34, .36, mat(0x8a6a48, { roughness: .9 }), -.02, .3, .22);   // gazete çantası
+    for (let i = 0; i < 3; i++) box(kid, .02, .12, .28, M.white, -.02 + (i - 1) * .03, .62, .22, false);
+    const paperHand = box(kid, .02, .26, .2, M.white, .2, .95, -.2, false);
+    kid.scale.setScalar(1.25);
+    world.add(kid);
+    pickables.push(kid);
+    const wrap = document.createElement("div");
+    wrap.className = "lbl";
+    const shout = document.createElement("div");
+    shout.className = "bubble news";
+    wrap.appendChild(shout);
+    const shoutAnchor = new CSS2DObject(wrap);
+    shoutAnchor.position.set(0, 1.55, 0);
+    kid.add(shoutAnchor);
+    // Rota: güney kaldırımı boyunca doğuya, sokak sonunda karşıya geç, kuzey kaldırımından batıya dön
+    const x0 = X_MIN + 6, x1 = X_MAX - 6, SW = 6;
+    const legs = [[x0, SW, x1, SW], [x1, SW, x1, -SW], [x1, -SW, x0, -SW], [x0, -SW, x0, SW]];
+    const st = { leg: 0, k: .1, t: 2, current: null, lastFeed: -99, paper: null, paperT: 0 };
+    const flying = box(world, .3, .06, .4, M.white, 0, 0, 0);
+    flying.visible = false;
+    const fromP = new THREE.Vector3(), toP = new THREE.Vector3();
+    anim.push((dt, t) => {
+      const [ax, az, bx, bz] = legs[st.leg];
+      const len = Math.hypot(bx - ax, bz - az);
+      st.k += dt * 1.7 / len;
+      if (st.k >= 1) { st.k = 0; st.leg = (st.leg + 1) % legs.length; }
+      const x = ax + (bx - ax) * st.k, z = az + (bz - az) * st.k;
+      kid.position.set(x, .18 + Math.abs(Math.sin(t * 9)) * .05, z);
+      kid.rotation.y = Math.atan2(-(bz - az), bx - ax);
+      paperHand.rotation.x = Math.sin(t * 6) * .4;
+      // Manşet: en yakın dükkânın yeni release'i
+      if ((st.t -= dt) <= 0) {
+        st.t = rand(6, 8);
+        const near = releases.filter(r => { const l = lotOf(r.id); return l && Math.abs(l.x - x) < 30; });
+        const r = pick(near.length ? near : releases);
+        const v = `${1 + Math.floor(Math.random() * 4)}.${Math.floor(Math.random() * 10)}.${String(Math.floor(Math.random() * 40)).padStart(2, "0")}`;
+        st.current = r;
+        shout.textContent = "📰 " + tt("news.release", { app: r.name, v });
+        shout.classList.add("show");
+        tagPick(kid, r.id);
+        if (t - st.lastFeed > 20) { st.lastFeed = t; onEvent?.({ kind: "news", company: r.id, text: tt("news.feed", { app: r.name, v }), sub: tt("news.sub"), at: new Date() }); }
+        // Gazeteyi dükkânın önüne fırlat
+        const l = lotOf(r.id);
+        if (l) { fromP.set(x, 1.2, z); toP.set(l.x, .3, l.side * (LOT_Z - 6.5)); st.paperT = 1; flying.visible = true; }
+      } else if (st.t < 2) shout.classList.remove("show");
+      if (st.paperT > 0) {
+        st.paperT -= dt * 1.4;
+        const k = 1 - Math.max(0, st.paperT);
+        flying.position.lerpVectors(fromP, toP, k);
+        flying.position.y += Math.sin(Math.PI * k) * 3;
+        flying.rotation.y += dt * 10;
+        if (st.paperT <= 0) setTimeout(() => { flying.visible = false; }, 2500);
+      }
+    });
+  }
+
   /* ================= 2. Özel günler ================= */
 
   // Türk bayrağı: kırmızı zemin, ay ve yıldız (ölçüler bayrak kanunundaki oranlara yakın)
