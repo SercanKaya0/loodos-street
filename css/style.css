@@ -377,6 +377,33 @@ svg { display: block; }
 .stage.far .pin-card { padding-right: 5px; height: 30px; }
 .stage.far .pin:hover .pin-name, .stage.far .pin.on .pin-name { display: inline; }
 
+/* Hotfix ekibinin terminali */
+.term {
+  position: absolute; left: 0; bottom: 0; transform: translateX(-50%); width: 250px; pointer-events: none;
+  padding: 22px 10px 8px; border-radius: 9px; background: rgba(10, 13, 17, .94); box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+  font: 500 10.5px/1.5 var(--f-mono); color: #d7dee3;
+  background-image: radial-gradient(circle at 12px 10px, #ff5f57 3.5px, transparent 4px), radial-gradient(circle at 24px 10px, #febc2e 3.5px, transparent 4px), radial-gradient(circle at 36px 10px, #28c840 3.5px, transparent 4px);
+  background-repeat: no-repeat;
+}
+.term .ln { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.term .cmd { color: #7fdcff; }
+.term .ok { color: #7dff9b; }
+.term .add { color: #7dff9b; background: rgba(125, 255, 155, .08); }
+.term .del { color: #ff8a8a; background: rgba(255, 138, 138, .08); }
+.term .cur { display: inline-block; width: 6px; height: 11px; margin-left: 2px; vertical-align: -1px; background: #d7dee3; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.stage.far .term { display: none; }
+
+/* Çalışanların konuşma balonları */
+.bubble {
+  position: absolute; left: 0; bottom: 0; transform: translate(-50%, 4px); width: max-content; max-width: 200px; pointer-events: none;
+  padding: 6px 10px; border-radius: 12px; background: var(--pin-bg); color: var(--ink); box-shadow: 0 3px 12px rgba(10, 30, 35, .2);
+  font: 600 11px/1.35 var(--f-display); white-space: normal; opacity: 0; transition: opacity .3s, transform .3s;
+}
+.bubble::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: var(--pin-bg); }
+.bubble.show { opacity: 1; transform: translate(-50%, 0); }
+.stage.far .bubble { display: none; }
+
 /* Mégane'ın plaka etiketi: gerçek TR plakası görünümünde */
 .plate-tag {
   position: absolute; left: 0; bottom: 0; transform: translateX(-50%); pointer-events: auto; cursor: pointer;

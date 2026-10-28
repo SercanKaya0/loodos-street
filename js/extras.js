@@ -418,6 +418,55 @@ export function buildExtras(k) {
     });
   }
 
+  // Loodos binasının önünde sohbet eden çalışanlar; balonlarda gerçek proje rakamları ve cevaplar
+  {
+    const facts = data.companies.flatMap(c => c.projects.flatMap(p => p.metrics.map(m => `${c.name}${p.app ? " " + p.app : ""}: ${m[0]} ${m[1]}!`)));
+    const prodNames = data.products.map(p => p.name);
+    const say = kind => kind === "q"
+      ? (facts.length && Math.random() < .7 ? pick(facts) : pick(tt("chat.prod")).replace("{p}", pick(prodNames)))
+      : pick(tt("chat.reply"));
+    const front = hq.position.z + 5.75 + 1.1;   // merkezin ön cephesi ile kaldırım arası
+    const groups = [-5.6, 0, 5.6].map((dx, gi) => {
+      const n = gi === 1 ? 3 : 2, people = [];
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + gi;
+        const x = hq.position.x + dx + Math.cos(a) * .75, z = front + Math.sin(a) * .5;
+        const g = new THREE.Group();
+        g.position.set(x, .05, z);
+        world.add(g);
+        const parts = person(g, 0, 0, 0);
+        if (Math.random() < .5) cyl(g, .07, .06, .16, M.white, .25, .9, .1, 8);   // kahve bardağı
+        g.lookAt(hq.position.x + dx, .05, front);
+        const wrap = document.createElement("div");
+        wrap.className = "lbl";
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        wrap.appendChild(bubble);
+        const anchor = new CSS2DObject(wrap);
+        anchor.position.set(0, 2.05, 0);
+        g.add(anchor);
+        people.push({ g, parts, bubble });
+      }
+      return { people, t: gi * 1.6 + .5, turn: 0, speaker: -1, kind: "q" };
+    });
+    anim.push((dt, t) => {
+      for (const gr of groups) {
+        if ((gr.t -= dt) > 0) continue;
+        if (gr.speaker >= 0) gr.people[gr.speaker].bubble.classList.remove("show");
+        // Sırayla konuşurlar: biri haber verir, diğeri cevaplar; arada kısa sessizlik
+        if (gr.turn % 3 === 2) { gr.speaker = -1; gr.t = rand(1.5, 3); gr.turn++; continue; }
+        gr.speaker = (gr.speaker + 1 + Math.floor(Math.random() * (gr.people.length - 1))) % gr.people.length;
+        const p = gr.people[gr.speaker];
+        p.bubble.textContent = say(gr.turn % 3 === 0 ? "q" : "a");
+        p.bubble.classList.add("show");
+        gr.t = rand(3.6, 5);
+        gr.turn++;
+      }
+      // Konuşan hafifçe sallanır
+      for (const gr of groups) gr.people.forEach((p, i) => { p.g.position.y = .05 + (i === gr.speaker ? Math.abs(Math.sin(t * 6)) * .04 : 0); });
+    });
+  }
+
   /* ================= 2. Özel günler ================= */
 
   // Türk bayrağı: kırmızı zemin, ay ve yıldız (ölçüler bayrak kanunundaki oranlara yakın)

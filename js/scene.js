@@ -1164,6 +1164,106 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     amb.label.visible = false;
     g.add(amb.label);
   }
+  // Olay yerinde kurulan masa: iki kişilik Hotfix ekibi, MacBook ve tepede akan terminal
+  const desk = new THREE.Group();
+  const deskCrew = [];
+  const furniture = new THREE.Group();   // masa ve MacBook; kurulurken yerden yükselir
+  desk.add(furniture);
+  let lid, screenMat, termEl, termLines = [], termShown = -1;
+  {
+    box(furniture, 1.7, .08, .9, M.white, 0, .78, 0);
+    for (const [x, z] of [[-.75, -.38], [.75, -.38], [-.75, .38], [.75, .38]]) box(furniture, .06, .78, .06, M.ink, x, 0, z);
+    const alu = mat(0xc9ced3, { roughness: .3, metalness: .7 });
+    box(furniture, .62, .03, .42, alu, 0, .86, -.05);            // MacBook gövdesi
+    lid = new THREE.Group();
+    lid.position.set(0, .89, .16);                                // menteşe ön kenarda; ekran ekibe bakar
+    furniture.add(lid);
+    box(lid, .62, .4, .02, alu, 0, 0, 0);
+    screenMat = new THREE.MeshStandardMaterial({ color: 0x0b1016, emissive: 0x1ab0ba, emissiveIntensity: .25 });
+    const scr = box(lid, .56, .34, .005, screenMat, 0, .03, -.012, false);
+    scr.userData.screen = true;
+    const coat = mat(0xffffff, { roughness: .7 }), band = mat(0xe5484d, { roughness: .5 });
+    for (let i = 0; i < 2; i++) {
+      const p = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(.24, .62, 4, 8), coat);
+      body.position.y = .6; body.castShadow = true;
+      const stripe = new THREE.Mesh(new THREE.CylinderGeometry(.255, .255, .1, 12), band);
+      stripe.position.y = .78;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(.2, 10, 8), mat(i ? 0xc99a74 : 0xe8c4a0));
+      head.position.y = 1.28;
+      p.add(body, stripe, head);
+      desk.add(p);
+      deskCrew.push(p);
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "lbl";
+    termEl = document.createElement("div");
+    termEl.className = "term";
+    wrap.appendChild(termEl);
+    const term = new CSS2DObject(wrap);
+    term.position.set(0, 2.5, 0);
+    desk.add(term);
+    desk.userData.term = term;
+    desk.visible = false;
+    term.visible = false;
+    world.add(desk);
+  }
+  // Hata ayıklama senaryosu: platforma göre komutlar, hatanın başlığıyla commit
+  function hotfixScript(m) {
+    const branch = "hotfix/" + m.id.toLowerCase();
+    const p = /android|kotlin/i.test(m.platform) ? "android" : /ios|swift/i.test(m.platform) ? "ios" : "web";
+    const file = { ios: "Checkout/CartTotal.swift", android: "checkout/CartTotal.kt", web: "src/checkout/cartTotal.ts" }[p];
+    const test = { ios: ["$ xcodebuild test -scheme App", "✓ 214 tests passed"], android: ["$ ./gradlew testRelease", "✓ BUILD SUCCESSFUL"], web: ["$ npm test", "✓ 162 passed"] }[p];
+    return [
+      ["cmd", `$ git checkout -b ${branch}`],
+      ["cmd", `$ grep -rn "total" ${file.split("/")[0]}/`],
+      ["", `${file}:42`],
+      ["del", "- let total = items.sum() - discount"],
+      ["add", "+ let total = max(0, items.sum() - discount)"],
+      ["cmd", test[0]], ["ok", test[1]],
+      ["cmd", `$ git commit -am "fix: ${m.title.toLocaleLowerCase(document.documentElement.lang)}"`],
+      ["cmd", `$ git push origin ${branch}`],
+      ["ok", "🚀 " + tt("amb.term.shipped", { shop: m.company.name })],
+    ];
+  }
+  const ONSITE = 13;   // varış: 0–1.4 kurulum, 1.4–2.2 kapak açılır, 2.2–11 kod, 11–13 toplanır
+  function stepDesk() {
+    const m = amb.mission;
+    if (amb.state !== "onsite" || !m) {
+      if (desk.visible) { desk.visible = false; desk.userData.term.visible = false; }
+      return;
+    }
+    const e = ONSITE - amb.timer, side = amb.target.side;
+    if (!desk.visible) {
+      desk.visible = true;
+      desk.position.set(amb.target.x, .18, side * 5.7);
+      desk.rotation.y = side > 0 ? Math.PI : 0;   // yerel +z yola bakar
+      termLines = hotfixScript(m);
+      termShown = -1;
+    }
+    const setup = THREE.MathUtils.clamp(e / 1.4, 0, 1), pack = THREE.MathUtils.clamp((e - 11) / 2, 0, 1);
+    const k = setup * (1 - pack);
+    // Ekip ambulanstan (yerel z ≈ +5.7) masanın arkasına yürür, sonra geri döner
+    deskCrew.forEach((p, i) => {
+      p.position.set(i ? .55 : -.55, 0, THREE.MathUtils.lerp(5.4, -.75, k));
+      p.rotation.y = 0;
+      p.position.y = Math.abs(Math.sin(e * (k < 1 && k > 0 ? 9 : 0))) * .05 + (i === 0 && e > 2.2 && e < 11 ? Math.abs(Math.sin(e * 14)) * .02 : 0);
+    });
+    furniture.scale.set(1, Math.max(.001, k), 1);
+    lid.visible = k > .9;
+    lid.rotation.x = -THREE.MathUtils.clamp((e - 1.4) / .8, 0, 1) * (1 - THREE.MathUtils.clamp((e - 10.6) / .5, 0, 1)) * 1.85;
+    screenMat.emissiveIntensity = lid.rotation.x < -1 ? 1.2 : .1;
+    const coding = e > 2.2 && e < 11.4;
+    desk.userData.term.visible = coding;
+    if (coding) {
+      const n = Math.min(termLines.length, Math.floor((e - 2.2) / 8.6 * termLines.length) + 1);
+      if (n !== termShown) {
+        termShown = n;
+        const shown = termLines.slice(Math.max(0, n - 7), n);
+        termEl.innerHTML = shown.map(([c, s], i) => `<div class="ln ${c}">${esc(s)}${i === shown.length - 1 && n < termLines.length ? '<i class="cur"></i>' : ""}</div>`).join("");
+      }
+    }
+  }
   function ambTag() {
     const m = amb.mission;
     const st = !m ? "" : amb.state === "enroute" ? "→ " + m.company.name : amb.state === "onsite" ? tt("amb.tag.onsite") : tt("amb.tag.fixed");
@@ -1208,7 +1308,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       if (amb.state === "enroute") {
         const rem = (amb.target.x - amb.x) * amb.dir;
         if (rem < 14) want = Math.max(1.5, 15 * rem / 14);
-        if (rem <= .3) { amb.state = "onsite"; amb.timer = rand(6, 9); amb.speed = 0; want = 0; m.tArrive = t; ambTag(); }
+        if (rem <= .3) { amb.state = "onsite"; amb.timer = ONSITE; amb.speed = 0; want = 0; m.tArrive = t; ambTag(); }
       } else if (amb.state === "onsite") {
         want = 0;
         amb.timer -= dt;
@@ -1640,6 +1740,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     }
     stepTrain(dt);
     const ambSound = stepAmbulance(dt);
+    stepDesk();
     extras.step(dt, t, { night, wx });
     siren?.set(Math.max(ambSound, extras.siren()));
     for (const fl of flags) fl.f.rotation.y = Math.sin(t * 1.7 + fl.ph) * .28;
