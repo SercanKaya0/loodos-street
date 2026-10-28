@@ -42,7 +42,7 @@ function glowTexture(stretch = 1) {
   return tex;
 }
 
-export async function createStreet({ el, data, night: initialNight = 0, siren, onSelect, onEvent }) {
+export async function createStreet({ el, data, night: initialNight = 0, weather: initialWeather = "clear", siren, onSelect, onEvent }) {
   /* ---------- Renderer, kamera, kontroller ---------- */
   // Dokunmatik/dar ekranda GPU belleğini koru: düşük piksel oranı, küçük gölge haritası, daha az yaya
   const LITE = matchMedia("(pointer: coarse)").matches || innerWidth < 860;
@@ -288,7 +288,8 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   /* ---------- Zemin, yollar, kaldırımlar ---------- */
   const world = new THREE.Group();
   scene.add(world);
-  plane(world, LEN + 400, 400, mat(C.ground, { roughness: 1 }), 0, 0, 0);
+  const groundMat = mat(C.ground, { roughness: 1 });   // kar yağınca beyazlar (applyNight)
+  plane(world, LEN + 400, 400, groundMat, 0, 0, 0);
   plane(world, X_MAX - X_MIN + 40, 9, M.road, (X_MIN + X_MAX) / 2, .02, 0);
   for (let x = X_MIN - 18; x < X_MAX + 18; x += 4.5) inst.dash.push(local(world, x, .04, 0, 2.2, .02, .22));
 
@@ -1253,7 +1254,8 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   const winLitMat = mat(0x7fc6cf, { roughness: .2, metalness: .1, emissive: 0xffcf7a, emissiveIntensity: 0 });
   flush(inst.winLit, BOX, winLitMat, { cast: false });
   flush(inst.trunk, new THREE.CylinderGeometry(.5, .6, 1, 6), M.trunk);
-  flush(inst.crown, new THREE.IcosahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .9, flatShading: true }), { colors: true });
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .9, flatShading: true, emissive: 0xffffff, emissiveIntensity: 0 });
+  flush(inst.crown, new THREE.IcosahedronGeometry(1, 0), crownMat, { colors: true });
   flush(inst.lamp, BOX, M.ink);
   const bulbMat = mat(0xffffff, { emissive: 0xfff4d6, emissiveIntensity: .6 });
   flush(inst.bulb, BOX, bulbMat, { cast: false });
@@ -1421,6 +1423,69 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   controls.addEventListener("start", () => { fly = null; follow = null; el.classList.add("grabbing"); });
   controls.addEventListener("end", () => el.classList.remove("grabbing"));
 
+  /* ---------- Hava: yağmur ve kar ---------- */
+  // Parçacıklar kameranın baktığı yerin çevresinde, görünen alana göre ölçeklenen bir kutuda yağar;
+  // konumlar 0–1 arası tutulduğundan yakınlaştırınca da yoğunluk aynı kalır.
+  const PRECIP = LITE ? 2600 : 6000;
+  const precipField = () => { const a = new Float32Array(PRECIP * 3); for (let i = 0; i < a.length; i++) a[i] = Math.random(); return a; };
+  const rainN = precipField(), snowN = precipField();
+  const rainGeo = new THREE.BufferGeometry();
+  rainGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(PRECIP * 6), 3));
+  const rainLines = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0x6f8794, transparent: true, opacity: .7, depthWrite: false }));
+  const snowGeo = new THREE.BufferGeometry();
+  snowGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(PRECIP * 3), 3));
+  const snowPts = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: 0xffffff, map: glowTex, size: LITE ? 4 : 5, sizeAttenuation: false, transparent: true, depthWrite: false }));
+  for (const o of [rainLines, snowPts]) { o.frustumCulled = false; o.visible = false; scene.add(o); }
+  const wx = { rainT: 0, snowT: 0, rain: 0, snow: 0, cover: 0, cloud: 0, flash: 0, nextFlash: 8 };
+  function setWeather(kind, instant = false) {
+    wx.rainT = kind === "rain" ? 1 : 0;
+    wx.snowT = kind === "snow" ? 1 : 0;
+    if (instant) { wx.rain = wx.rainT; wx.snow = wx.snowT; wx.cover = wx.snowT * .85; wx.cloud = Math.max(wx.rain, wx.snow * .8); }
+  }
+  function stepWeather(dt) {
+    const before = wx.cloud + wx.cover + wx.flash;
+    wx.rain += THREE.MathUtils.clamp(wx.rainT - wx.rain, -dt * .4, dt * .4);
+    wx.snow += THREE.MathUtils.clamp(wx.snowT - wx.snow, -dt * .4, dt * .4);
+    // Kar yağdıkça örtü birikir, durunca yavaşça erir
+    wx.cover = THREE.MathUtils.clamp(wx.cover + (wx.snow > .3 ? dt * .03 : -dt * .02), 0, .85);
+    wx.cloud = Math.max(wx.rain, wx.snow * .8);
+    // Sağanakta ara sıra şimşek
+    if (wx.rain > .8 && (wx.nextFlash -= dt) <= 0) { wx.flash = .18; wx.nextFlash = rand(14, 32); }
+    wx.flash = Math.max(0, wx.flash - dt);
+    const dirty = Math.abs(wx.cloud + wx.cover + wx.flash - before) > 1e-4;
+
+    const half = VIEW * el.clientWidth / el.clientHeight / 2 / camera.zoom;
+    const W = half * 2.8, H = Math.max(25, half * 1.2), cx = controls.target.x, cz = controls.target.z;
+    const nRain = Math.floor(PRECIP * wx.rain), nSnow = Math.floor(PRECIP * wx.snow);
+    rainLines.visible = nRain > 0;
+    snowPts.visible = nSnow > 0;
+    if (nRain) {
+      const p = rainGeo.attributes.position.array, dw = 55 * dt / H, len = 2.6;
+      for (let i = 0; i < nRain; i++) {
+        const k = i * 3;
+        if ((rainN[k + 2] -= dw) < 0) { rainN[k + 2] += 1; rainN[k] = Math.random(); rainN[k + 1] = Math.random(); }
+        const x = cx + (rainN[k] - .5) * W, y = rainN[k + 2] * H, z = cz + (rainN[k + 1] - .5) * W, j = i * 6;
+        p[j] = x; p[j + 1] = y; p[j + 2] = z;
+        p[j + 3] = x - len * .22; p[j + 4] = y + len; p[j + 5] = z - len * .1;
+      }
+      rainGeo.attributes.position.needsUpdate = true;
+      rainGeo.setDrawRange(0, nRain * 2);
+    }
+    if (nSnow) {
+      const p = snowGeo.attributes.position.array, dw = 5 * dt / H;
+      for (let i = 0; i < nSnow; i++) {
+        const k = i * 3;
+        if ((snowN[k + 2] -= dw * (.7 + (i % 5) * .12)) < 0) { snowN[k + 2] += 1; snowN[k] = Math.random(); snowN[k + 1] = Math.random(); }
+        p[k] = cx + (snowN[k] - .5) * W + Math.sin(t * 1.1 + i * 1.7) * .8;
+        p[k + 1] = snowN[k + 2] * H;
+        p[k + 2] = cz + (snowN[k + 1] - .5) * W + Math.cos(t * .9 + i) * .5;
+      }
+      snowGeo.attributes.position.needsUpdate = true;
+      snowGeo.setDrawRange(0, nSnow);
+    }
+    return dirty;
+  }
+
   /* ---------- Gündüz / gece ---------- */
   let night = 0, nightTarget = 0;
   const tmpC = new THREE.Color();
@@ -1428,12 +1493,20 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
   function applyNight(n) {
     const lit = smooth(.25, .75, n);            // lambalar alacakaranlıkta yanar
     const dusk = Math.sin(Math.PI * n) * .55;   // geçişte güneş turuncuya döner
-    mix(scene.background, DAY.bg, NIGHT.bg, n);
+    const { cloud, cover, flash } = wx;   // bulut güneşi kısar ve gökyüzünü griye çeker
+    mix(scene.background, DAY.bg, NIGHT.bg, n).lerp(tmpC.setHex(n > .5 ? 0x121a20 : 0xb7c2c7), cloud * .55);
     mix(hemi.color, DAY.sky, NIGHT.sky, n);
     mix(hemi.groundColor, DAY.ground, NIGHT.ground, n);
-    hemi.intensity = DAY.hemi + (NIGHT.hemi - DAY.hemi) * n;
-    mix(sun.color, DAY.sun, NIGHT.sun, n).lerp(tmpC.setHex(DUSK), dusk);
-    sun.intensity = DAY.sunI + (NIGHT.sunI - DAY.sunI) * n;
+    hemi.intensity = (DAY.hemi + (NIGHT.hemi - DAY.hemi) * n) * (1 - .18 * cloud) + (flash > 0 ? 2.6 : 0);
+    mix(sun.color, DAY.sun, NIGHT.sun, n).lerp(tmpC.setHex(DUSK), dusk * (1 - cloud));
+    sun.intensity = (DAY.sunI + (NIGHT.sunI - DAY.sunI) * n) * (1 - .55 * cloud);
+    // Kar örtüsü: zemin, çatılar, kaldırımlar beyazlar; ağaç tepeleri soluklaşır
+    mix(groundMat.color, C.ground, 0xffffff, cover);
+    mix(M.roof.color, C.roof, 0xffffff, cover);
+    mix(M.walk.color, C.walk, 0xffffff, cover);
+    mix(M.road.color, C.road, 0xe4eaed, cover * .6);
+    crownMat.emissiveIntensity = cover * .45;
+    mix(rainLines.material.color, 0x6f8794, 0xa9c4d0, n);   // gündüz koyu, gece açık damla
     winLitMat.emissiveIntensity = 1.15 * lit;
     M.glass.emissiveIntensity = .75 * lit;
     bulbMat.emissiveIntensity = .6 + 2.6 * lit;
@@ -1451,6 +1524,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
     nightTarget = THREE.MathUtils.clamp(Number(n) || 0, 0, 1);
     if (instant) { night = nightTarget; applyNight(night); }
   }
+  setWeather(initialWeather, true);
   setNight(initialNight, true);
 
   /* ---------- Döngü ---------- */
@@ -1550,11 +1624,13 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
       f.f.rotation.y = ph < .5 ? 0 : Math.PI;
       f.load.visible = ph < .5;
     }
+    let envDirty = stepWeather(dt);
     if (night !== nightTarget) {
       night += (nightTarget - night) * Math.min(1, dt * 1.8);
       if (Math.abs(nightTarget - night) < .002) night = nightTarget;
-      applyNight(night);
+      envDirty = true;
     }
+    if (envDirty) applyNight(night);
     if (selRing.visible) { const s = 1 + Math.sin(t * 3) * .03; selRing.scale.set(s, s, 1); }
     glowMat.opacity = .45 + .3 * Math.sin(t * 4);
 
@@ -1568,7 +1644,7 @@ export async function createStreet({ el, data, night: initialNight = 0, siren, o
 
   return {
     districts, vehicles, hqX,
-    select, highlight, focusSector, home, setNight,
+    select, highlight, focusSector, home, setNight, setWeather,
     clearSelection() { select(null); highlight(null); },
     zoomBy(f) { follow = null; flyTo(controls.target.clone(), THREE.MathUtils.clamp(camera.zoom * f, controls.minZoom, controls.maxZoom), 350); },
     rotateBy(a) {

@@ -425,6 +425,10 @@ svg { display: block; }
 .theme-menu b { display: block; font: 600 13px var(--f-display); }
 .theme-menu small { display: block; color: var(--muted); font-size: 11.5px; }
 .live.sim time { color: var(--violet-ink); }
+.wx:empty { display: none; }
+.wx svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.theme-menu .sep-h { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.theme-menu { max-height: calc(100vh - 100px); overflow: auto; }
 
 .sound-btn .mute, .sound-btn.muted .wave { display: none; }
 .sound-btn.muted .mute { display: block; }

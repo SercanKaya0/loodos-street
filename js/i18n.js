@@ -101,6 +101,11 @@ const T = {
     "pr.hq": "Loodos Merkez",
 
     "sound.on": "Sireni kapat", "sound.off": "Sireni aç",
+    "weather": "Hava",
+    "wx.auto": "Mevsime göre", "wx.auto.d": "Aya göre yağmur ya da kar; şu an: {now}",
+    "wx.clear": "Açık", "wx.clear.d": "Yağış yok",
+    "wx.rain": "Yağmur", "wx.rain.d": "Kapalı gökyüzü, sağanakta şimşek",
+    "wx.snow": "Kar", "wx.snow.d": "Çatılar ve ağaçlar beyazlar",
     "amb.side": "LOODOS · BUG AMBULANSI",
     "amb.kicker": "Loodos Hotfix · Bug ambulansı",
     "amb.tag.onsite": "Hata ayıklanıyor", "amb.tag.fixed": "✓ Çözüldü",
@@ -189,6 +194,11 @@ const T = {
     "pr.hq": "Loodos HQ",
 
     "sound.on": "Mute siren", "sound.off": "Unmute siren",
+    "weather": "Weather",
+    "wx.auto": "By season", "wx.auto.d": "Rain or snow by month; now: {now}",
+    "wx.clear": "Clear", "wx.clear.d": "No precipitation",
+    "wx.rain": "Rain", "wx.rain.d": "Overcast sky, lightning in downpours",
+    "wx.snow": "Snow", "wx.snow.d": "Roofs and trees turn white",
     "amb.side": "LOODOS · BUG AMBULANCE",
     "amb.kicker": "Loodos Hotfix · Bug ambulance",
     "amb.tag.onsite": "Debugging", "amb.tag.fixed": "✓ Fixed",
