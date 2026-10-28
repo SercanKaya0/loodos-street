@@ -101,6 +101,11 @@ const T = {
     "pr.hq": "Loodos Merkez",
 
     "sound.on": "Sireni kapat", "sound.off": "Sireni aç",
+    "event": "Özel gün",
+    "ev.auto": "Tarihe göre", "ev.auto.d": "Bayramlarda bayrak ve havai fişek, yılbaşında ışıklar; şu an: {now}",
+    "ev.none": "Yok", "ev.none.d": "Her zamanki sokak",
+    "ev.national": "Ulusal bayram", "ev.national.d": "Direklerde Türk bayrakları, akşam havai fişek",
+    "ev.newyear": "Yılbaşı", "ev.newyear.d": "Ağaçlarda ışıklar, meydanda yılbaşı ağacı, kar",
     "weather": "Hava",
     "wx.auto": "Mevsime göre", "wx.auto.d": "Aya göre yağmur ya da kar; şu an: {now}",
     "wx.clear": "Açık", "wx.clear.d": "Yağış yok",
@@ -194,6 +199,11 @@ const T = {
     "pr.hq": "Loodos HQ",
 
     "sound.on": "Mute siren", "sound.off": "Unmute siren",
+    "event": "Special day",
+    "ev.auto": "By date", "ev.auto.d": "Flags and fireworks on national days, lights at New Year; now: {now}",
+    "ev.none": "None", "ev.none.d": "The usual street",
+    "ev.national": "National holiday", "ev.national.d": "Turkish flags on the poles, fireworks in the evening",
+    "ev.newyear": "New Year", "ev.newyear.d": "Lights on the trees, a New Year tree in the square, snow",
     "weather": "Weather",
     "wx.auto": "By season", "wx.auto.d": "Rain or snow by month; now: {now}",
     "wx.clear": "Clear", "wx.clear.d": "No precipitation",

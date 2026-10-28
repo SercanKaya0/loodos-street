@@ -8,6 +8,9 @@ Loodos'un müşteri projelerini izometrik bir sokakta gezdiren etkileşimli hari
 - Araçlar: her kamyon/panelvan bir Loodos ürünü taşır ve yalnızca o ürünü kullanan dükkânlara teslimat yapar.
 - Sunum modu: sağ alttaki ekran düğmesi ya da `#sunum`. Merkez → mahalleler → dükkânlar sırayla gezilir; ← → ileri/geri, boşluk duraklat, Esc bitir.
 - Şehir: etrafında ray halkası ve istasyonda duran iki Loodos Express treni, Havacılık mahallesinin arkasındaki piste inip kalkan SunExpress uçakları (tıklanınca SunExpress açılır), tepesinde Loodos bayrağı olan elektrik direkleri, Brific Crimson/Bianco/Marine scooter'ları.
+- Müşteri detayları: Petrol Ofisi akaryakıt istasyonu, Oyak Renault galerisi, Bosch robot kolları, Zorlu rüzgâr türbinleri, İKSV konser sahnesi, WeWALK akıllı bastonlu yaya, kafelerde oturan müşteriler ve tüten buhar. Tıklanınca ilgili dükkân açılır.
+- Özel günler: tema menüsünden Tarihe göre / Yok / Ulusal bayram / Yılbaşı. Bayramda direklerde Türk bayrakları, merkezde dev bayrak ve akşam havai fişek; yılbaşında ağaç ışıkları, meydanda yılbaşı ağacı ve kar.
+- Şehir hayatı: saate göre trafik, yağmurdan sonra gökkuşağı, kuş sürüsü, bulut gölgeleri, A101 dron teslimatı, dönen dijital reklam panoları, Boğaz ve vapurlar.
 - Hava: tema menüsünden Mevsime göre / Açık / Yağmur / Kar. Mevsim modu her ay için yağmur ve kar olasılığını kullanır; hava 3 saatlik dilimlerle değişir. Kar yağdıkça çatılar ve ağaçlar beyazlar, sağanakta şimşek çakar.
 - Bug ambulansı: ara sıra kısık sirenle bir dükkâna gider, hatayı yerinde çözer; panelde görev adımları ve oturumluk bug hesabı (1 sn = 1 dk). Siren sağdaki hoparlör düğmesiyle kapatılır.
 - Sahne: Three.js r160 (`vendor/three`, CDN'siz). WebGL yoksa liste görünümüne düşer.

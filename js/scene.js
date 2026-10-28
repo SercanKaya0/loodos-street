@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { t as tt } from "./i18n.js";
+import { buildExtras } from "./extras.js";
 
 const C = {
   ground: 0xe6eef0, road: 0xd3dde0, walk: 0xf7fafb, curb: 0xc9d4d7, line: 0xffffff,
@@ -505,7 +506,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     const pin = makePin(c, s, pinY);
     pin.position.set(0, pinY, 0);
     g.add(pin);
-    companies.set(c.id, { lot, group: g, wallMat, height: pinY, pin: pin.element.firstChild, sector: s });
+    companies.set(c.id, { lot, group: g, wallMat, height: pinY, roof: top, pin: pin.element.firstChild, sector: s });
   }
 
   function makePin(c, s, y) {
@@ -565,10 +566,9 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   // Meydan: çeşme halkası ve banklar
   const plaza = new THREE.Group();
   plane(plaza, 22, 13, M.walk, 0, .06, 0);
-  cyl(plaza, 3.4, 3.6, .5, M.wall2, 0, 0, 0, 40);
+  const fountain = [cyl(plaza, 3.4, 3.6, .5, M.wall2, 0, 0, 0, 40)];   // yılbaşında yerini ağaca bırakır
   const water = mat(0x9fe0e6, { roughness: .2, emissive: 0x2fc7d1, emissiveIntensity: 0 });
-  cyl(plaza, 2.9, 2.9, .42, water, 0, .12, 0, 40);
-  cyl(plaza, .5, .7, 1.4, M.teal, 0, .3, 0, 20);
+  fountain.push(cyl(plaza, 2.9, 2.9, .42, water, 0, .12, 0, 40), cyl(plaza, .5, .7, 1.4, M.teal, 0, .3, 0, 20));
   for (const a of [0, 1, 2, 3]) {
     const bx = Math.cos(a * Math.PI / 2 + .78) * 6.2, bz = Math.sin(a * Math.PI / 2 + .78) * 4.4;
     box(plaza, 1.8, .45, .6, M.tealInk, bx, 0, bz);
@@ -789,6 +789,13 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
    ["car", 1], ["van", 1], ["scooter", -1], ["car", -1], ["truck", 1], ["van", -1], ["car", -1], ["scooter", 1], ["scooter", -1]].forEach(([t, d], i) => {
     addVehicle(t, d, X_MIN + ((i * 37) % 16) / 16 * span + rand(-4, 4));
   });
+  // Saate göre trafik: otomobiller yoğun saatte (08:30, 18:15 civarı) hepsi yolda, gece birkaçı kalır.
+  for (let i = 0; i < 8; i++) addVehicle("car", i % 2 ? 1 : -1, X_MIN + rand(0, span));
+  const peak = (h, c, w) => Math.exp(-((h - c) ** 2) / (2 * w * w));
+  const trafficAt = h => THREE.MathUtils.clamp(.15 + (h > 6.5 && h < 22.5 ? .3 : 0) + .6 * Math.max(peak(h, 8.5, 1), peak(h, 18.25, 1.2)), .1, 1);
+  let traffic = trafficAt(new Date().getHours() + new Date().getMinutes() / 60);
+  function setClock(h) { traffic = trafficAt(((Number(h) % 24) + 24) % 24); }
+  for (const v of vehicles) if (v.type === "car" && Math.random() > traffic) { v.off = true; v.mesh.visible = false; }
 
   const walkers = [];
   for (let i = 0; i < (LITE ? 26 : 46); i++) {
@@ -1234,6 +1241,13 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     siren?.set(sound);
   }
 
+  /* ---------- Müşteri detayları, özel günler, şehir hayatı (js/extras.js) ---------- */
+  const extras = buildExtras({
+    world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
+    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
+    crowns: inst.crown, data, pickables, LITE, rand, pick,
+  });
+
   /* ---------- Instanced parçaları oluştur ---------- */
   scene.updateMatrixWorld(true);
   function flush(list, geo, material, { cast = true, colors = false } = {}) {
@@ -1515,6 +1529,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     headMat.emissiveIntensity = 2.4 * lit;
     tailMat.emissiveIntensity = 1.8 * lit;
     for (const m of signMats) m.emissiveIntensity = .5 * lit;
+    extras.applyNight(lit);
     hqTeal.emissiveIntensity = .9 * lit;
     water.emissiveIntensity = .3 * lit;
     navRed.emissiveIntensity = 2.2 * lit;
@@ -1556,7 +1571,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       camera.position.copy(controls.target).add(off);
     }
     controls.target.x = THREE.MathUtils.clamp(controls.target.x, X_MIN, X_MAX);
-    controls.target.z = THREE.MathUtils.clamp(controls.target.z, -60, 45);
+    controls.target.z = THREE.MathUtils.clamp(controls.target.z, -110, 45);   // kuzeyde Boğaz'a kadar
     controls.target.y = 0;
     controls.update();
     el.classList.toggle("far", camera.zoom < 1.05);
@@ -1564,9 +1579,14 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
 
     // Araçlar: şeritte sıra, teslimat durakları, uçtan uca dönüş
     for (const v of vehicles) {
+      if (v.off) {
+        // Park halindeki araç trafik yoğunlaştıkça sokağın başından yeniden yola çıkar
+        if (Math.random() < dt * .12 * traffic) { v.off = false; v.x = v.dir > 0 ? X_MIN - 14 : X_MAX + 14; v.speed = v.base; v.mesh.visible = true; }
+        else continue;
+      }
       let gap = Infinity, lead = null;
       for (const o of vehicles) {
-        if (o === v || o.dir !== v.dir) continue;
+        if (o === v || o.dir !== v.dir || o.off) continue;
         const dx = (o.x - v.x) * v.dir;
         if (dx > 0 && dx < gap) { gap = dx; lead = o; }
       }
@@ -1594,6 +1614,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       if (v.x > X_MAX + 16 || v.x < X_MIN - 16) {
         v.x = v.dir > 0 ? X_MIN - 14 : X_MAX + 14;
         if (v.delivers) newDest(v, true);
+        else if (v.type === "car" && Math.random() > traffic) { v.off = true; v.mesh.visible = false; }
       }
       v.mesh.position.x = v.x;
     }
@@ -1614,6 +1635,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     }
     stepTrain(dt);
     stepAmbulance(dt);
+    extras.step(dt, t, { night, wx });
     for (const fl of flags) fl.f.rotation.y = Math.sin(t * 1.7 + fl.ph) * .28;
     stepPlanes(dt);
     for (const f of forklifts) {
@@ -1644,7 +1666,8 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
 
   return {
     districts, vehicles, hqX,
-    select, highlight, focusSector, home, setNight, setWeather,
+    select, highlight, focusSector, home, setNight, setWeather, setClock,
+    setEvent: kind => extras.setEvent(kind),
     clearSelection() { select(null); highlight(null); },
     zoomBy(f) { follow = null; flyTo(controls.target.clone(), THREE.MathUtils.clamp(camera.zoom * f, controls.minZoom, controls.maxZoom), 350); },
     rotateBy(a) {
