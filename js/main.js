@@ -43,7 +43,7 @@ const ICON = {
 };
 
 // Sahne kurulamazsa (WebGL yok, GPU kara listede) arayüz bu boş sahneyle liste görünümünde çalışır.
-const NO_STREET = { select() {}, highlight() {}, focusSector() {}, home() {}, zoomBy() {}, rotateBy() {}, intro() {}, setNight() {}, setWeather() {}, setClock() {}, setEvent() {}, setLead() {}, vehicleInfo: () => null, ambulanceInfo: () => null };
+const NO_STREET = { select() {}, highlight() {}, focusSector() {}, home() {}, zoomBy() {}, rotateBy() {}, intro() {}, setNight() {}, setWeather() {}, setClock() {}, setEvent() {}, setLead() {}, setLabelsAll() {}, vehicleInfo: () => null, ambulanceInfo: () => null };
 const siren = createSiren(prefs.get("ls.sound") !== "off");
 let street = NO_STREET;
 let ctx = { kind: "all" };        // KPI ve panel bağlamı
@@ -669,6 +669,15 @@ function togglePause() {
   $("#prToggle").setAttribute("aria-label", t(presenter.paused ? "pr.play" : "pr.pause"));
 }
 
+let labelsAll = prefs.get("ls.labels") === "on";
+function syncLabels() {
+  const b = $('[data-action="labels"]');
+  b.classList.toggle("on", labelsAll);
+  b.setAttribute("aria-pressed", String(labelsAll));
+  b.setAttribute("aria-label", t(labelsAll ? "labels.off" : "labels.on"));
+  b.title = b.getAttribute("aria-label");
+  street.setLabelsAll(labelsAll);
+}
 function syncSound() {
   const b = $('[data-action="sound"]');
   b.classList.toggle("muted", !siren.enabled);
@@ -718,6 +727,7 @@ async function boot() {
     return finishBoot(false);
   }
   applyEvent();
+  syncLabels();
   street.setClock(simHours());
   street.setLead(lead.prods);
   finishBoot(true);
@@ -740,6 +750,7 @@ function wireUi() {
   });
   $("#langBtn").addEventListener("click", () => setLang(lang === "tr" ? "en" : "tr"));
   syncSound();
+  syncLabels();
 
   // Sunum: kontrol çubuğu dışındaki her dokunuş, tekerlek ya da Esc sunumu bitirir ve kontrolü kullanıcıya verir.
   $("#presenter").addEventListener("click", e => {
@@ -795,6 +806,7 @@ function wireUi() {
     e.preventDefault();
     const act = a.dataset.action;
     if (act === "present") presenter.on ? stopPresentation() : startPresentation();
+    else if (act === "labels") { labelsAll = !labelsAll; prefs.set("ls.labels", labelsAll ? "on" : "off"); syncLabels(); }
     else if (act === "sound") { siren.setEnabled(!siren.enabled); prefs.set("ls.sound", siren.enabled ? "on" : "off"); syncSound(); }
     else if (act === "home") goHome();
     else if (act === "zoom-in") street.zoomBy(1.4);

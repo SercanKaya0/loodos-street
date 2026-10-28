@@ -68,7 +68,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   scene.background = new THREE.Color(DAY.bg);
 
   const VIEW = 64;
-  let fly = null, follow = null, selected = null, hovered = null;
+  let fly = null, follow = null, selected = null, hovered = null, labelsAll = false;
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -500, 1000);
   const OFFSET = new THREE.Vector3(70, 92, 118);
   camera.position.copy(OFFSET);
@@ -1699,8 +1699,9 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     controls.target.z = THREE.MathUtils.clamp(controls.target.z, -110, 45);   // kuzeyde Boğaz'a kadar
     controls.target.y = 0;
     controls.update();
-    el.classList.toggle("far", camera.zoom < 1.05);
-    el.classList.toggle("near", camera.zoom > 2.2);
+    // "Tüm etiketleri göster" açıkken her zoom'da yakın görünüm davranışı: isimler, balonlar, terminal, araç etiketleri
+    el.classList.toggle("far", !labelsAll && camera.zoom < 1.05);
+    el.classList.toggle("near", labelsAll || camera.zoom > 2.2);
 
     // Araçlar: şeritte sıra, teslimat durakları, uçtan uca dönüş
     for (const v of vehicles) {
@@ -1795,6 +1796,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     districts, vehicles, hqX,
     select, highlight, focusSector, home, setNight, setWeather, setClock,
     setEvent: (kind, info) => extras.setEvent(kind, info),
+    setLabelsAll(on) { labelsAll = !!on; },
     // Ziyaretçinin seçtiği ürünler: parsel o ürünlerin müşterisi olur, bina kat kat yükselir, boştaki kamyonlar yola çıkar
     setLead(ids) {
       leadLot.c.projects[0].prods = ids.map(id => ({ id }));

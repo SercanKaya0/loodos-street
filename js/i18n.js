@@ -101,6 +101,7 @@ const T = {
     "pr.hq": "Loodos Merkez",
 
     "sound.on": "Sireni kapat", "sound.off": "Sireni aç",
+    "labels.on": "Tüm etiketleri göster", "labels.off": "Etiketleri zoom'a göre göster",
     "event": "Özel gün",
     "hol.4-23": ["23 Nisan", "Ulusal Egemenlik ve Çocuk Bayramımız Kutlu Olsun"],
     "hol.5-19": ["19 Mayıs", "Atatürk'ü Anma, Gençlik ve Spor Bayramımız Kutlu Olsun"],
@@ -222,6 +223,7 @@ const T = {
     "pr.hq": "Loodos HQ",
 
     "sound.on": "Mute siren", "sound.off": "Unmute siren",
+    "labels.on": "Show all labels", "labels.off": "Show labels by zoom",
     "event": "Special day",
     "hol.4-23": ["23 April", "Happy National Sovereignty and Children's Day"],
     "hol.5-19": ["19 May", "Happy Commemoration of Atatürk, Youth and Sports Day"],

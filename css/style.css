@@ -502,7 +502,7 @@ svg { display: block; }
 .steps .now { color: #e5484d; }
 .steps .now i { background: #e5484d; animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
-.present-btn.on { background: var(--teal); color: #fff; border-color: var(--teal); }
+.labels-btn.on, .present-btn.on { background: var(--teal); color: #fff; border-color: var(--teal); }
 .presenter {
   position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 14;
   display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 14px; min-width: 380px; max-width: calc(100vw - 2 * var(--gutter));
