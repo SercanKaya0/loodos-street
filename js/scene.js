@@ -465,9 +465,11 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       box(g, 3.6, .3, .2, acc, 1.8, 3.2, D / 2 + .1);
       signBoard(g, tex, W * .42, W * .42 * 200 / 640, 3.8, D / 2 + .14).position.x = -2.6;
       signBoard(g, tex, W * .5, W * .5 * 200 / 640, 3.6, -D / 2 - .14);
-      for (let i = 0; i < 3; i++) box(g, 1, .5, .9, i % 2 ? M.pallet : M.teal, -3.4 + i * 1.15, 0, D / 2 + 3.6);
-      box(g, 1, .5, .9, M.pallet, -3.4, .5, D / 2 + 3.6);
-      forklift(g, D / 2 + 2, 2.6);
+      if (c.id !== "oyak-renault") {   // Oyak'ın önü Mégane vitrinine ayrıldı (js/extras.js)
+        for (let i = 0; i < 3; i++) box(g, 1, .5, .9, i % 2 ? M.pallet : M.teal, -3.4 + i * 1.15, 0, D / 2 + 3.6);
+        box(g, 1, .5, .9, M.pallet, -3.4, .5, D / 2 + 3.6);
+        forklift(g, D / 2 + 2, 2.6);
+      }
       top = H + 1.7;
     } else if (type === "venue") {
       W = 9.2; D = 8; H = 5;

@@ -96,7 +96,55 @@ export function buildExtras(k) {
     }
   }
 
-  // Oyak Renault: cam galeri ve dönen platformda sarı bir Renault.
+  // Siyah Renault Mégane sedan (kullanıcının kendi arabası): yandan profil kesitinden çıkarılmış gövde, koyu camlar,
+  // krom ızgara ve elmas logo, LED farlar, stop şeridi, koyu jantlar ve plaka.
+  function meganeMesh() {
+    const g = new THREE.Group();
+    const paint = new THREE.MeshStandardMaterial({ color: 0x0b0d10, roughness: .22, metalness: .65 });
+    const tint = new THREE.MeshStandardMaterial({ color: 0x1a2128, roughness: .08, metalness: .4 });
+    const chrome = new THREE.MeshStandardMaterial({ color: 0xd9dde0, roughness: .15, metalness: 1 });
+    const rim = new THREE.MeshStandardMaterial({ color: 0x5b6168, roughness: .3, metalness: .8 });
+    const profile = pts => { const s = new THREE.Shape(); s.moveTo(...pts[0]); pts.slice(1).forEach(p => s.lineTo(...p)); s.closePath(); return s; };
+    const extrude = (shape, depth, m) => {
+      const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: .05, bevelSize: .05, bevelSegments: 2 });
+      geo.translate(0, 0, -depth / 2);
+      const o = new THREE.Mesh(geo, m); o.castShadow = true; g.add(o); return o;
+    };
+    extrude(profile([[-2.05, .3], [-2.15, .72], [-1.95, .92], [-1.25, .98], [-.55, 1.42], [.55, 1.45], [1.25, 1], [2.05, .82], [2.15, .55], [2.05, .3]]), 1.7, paint);
+    extrude(profile([[-1.12, 1], [-.52, 1.36], [.5, 1.38], [1.1, 1.02]]), 1.78, tint);
+    for (const x of [-1.32, 1.36]) for (const z of [-.86, .86]) {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(.34, .34, .24, 18), M.wheel);
+      w.rotation.x = Math.PI / 2; w.position.set(x, .34, z); g.add(w);
+      const r = new THREE.Mesh(new THREE.CylinderGeometry(.22, .22, .02, 10), rim);
+      r.rotation.x = Math.PI / 2; r.position.set(x, .34, z + Math.sign(z) * .13); g.add(r);
+    }
+    box(g, .06, .1, 1, chrome, 2.17, .58, 0, false);
+    const logo = box(g, .05, .16, .16, chrome, 2.2, .66, 0, false);
+    logo.rotation.x = Math.PI / 4;
+    const led = new THREE.MeshStandardMaterial({ color: 0xeaf4ff, emissive: 0xdff0ff, emissiveIntensity: .3 });
+    const tail = new THREE.MeshStandardMaterial({ color: 0x5a1010, emissive: 0xff2a2a, emissiveIntensity: .2 });
+    nightFx.push(l => { led.emissiveIntensity = .3 + 2.4 * l; tail.emissiveIntensity = .2 + 1.8 * l; });
+    for (const z of [-.6, .6]) box(g, .08, .09, .42, led, 2.1, .8, z, false);
+    box(g, .06, .08, 1.5, tail, -2.17, .84, 0, false);
+    // Plaka: beyaz zemin, solda mavi TR şeridi
+    const cv = document.createElement("canvas");
+    cv.width = 260; cv.height = 56;
+    const c = cv.getContext("2d");
+    c.fillStyle = "#ffffff"; c.fillRect(0, 0, 260, 56);
+    c.fillStyle = "#1f4fbf"; c.fillRect(0, 0, 26, 56);
+    c.fillStyle = "#ffffff"; c.font = "700 14px sans-serif"; c.textAlign = "center"; c.fillText("TR", 13, 48);
+    c.fillStyle = "#111111"; c.font = "700 36px sans-serif"; c.fillText("06 DZZ 227", 143, 41);
+    const plateTex = new THREE.CanvasTexture(cv);
+    plateTex.colorSpace = THREE.SRGBColorSpace;
+    const plateMat = new THREE.MeshStandardMaterial({ map: plateTex, roughness: .5 });
+    for (const [x, y, ry] of [[2.21, .44, Math.PI / 2], [-2.21, .5, -Math.PI / 2]]) {
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(.58, .125), plateMat);
+      p.position.set(x, y, 0); p.rotation.y = ry; g.add(p);
+    }
+    return g;
+  }
+
+  // Oyak Renault: cam galeride sarı bir Renault, dönen platformda siyah Mégane.
   {
     const g = attach("oyak-renault", -11);
     if (g) {
@@ -114,12 +162,23 @@ export function buildExtras(k) {
       const lamp = mat(0xffffff, { emissive: 0xfff1d6, emissiveIntensity: 0 });
       box(g, 7, .05, 4.6, lamp, -1.8, 3.28, 0, false);
       nightFx.push(lit => { lamp.emissiveIntensity = 1.4 * lit; });
-      cyl(g, 2.1, 2.1, .22, M.wall2, 3.9, 0, 0, 32);
+      carMesh(g, 3.6, 0, .4, 0xf6c400);
+      // Sokağa bakan döner vitrin: siyah Mégane
+      const front = companies.get("oyak-renault").group;
+      const podium = new THREE.Group();
+      podium.position.set(-2.4, 0, 5.75);
+      front.add(podium);
+      cyl(podium, 2.25, 2.35, .22, M.white, 0, 0, 0, 36);
+      cyl(podium, 2.37, 2.37, .06, yellow, 0, .2, 0, 36);
       const turntable = new THREE.Group();
-      turntable.position.set(3.9, .22, 0);
-      g.add(turntable);
-      carMesh(turntable, 0, 0, 0, 0xf6c400);
-      anim.push(dt => { turntable.rotation.y += dt * .5; });
+      turntable.position.y = .26;
+      podium.add(turntable);
+      const meg = meganeMesh();
+      meg.scale.setScalar(.98);
+      turntable.add(meg);
+      anim.push(dt => { turntable.rotation.y += dt * .4; });
+      groundGlow(podium, 6, 6, 0, 0, 0xffffff, .5);
+      tagPick(podium, "oyak-renault");
       totem(g, wordTexture("RENAULT", { bg: "#f6c400", color: "#111111", h: 160, w: 480 }), yellow, -5.6, 3.2);
       groundGlow(g, 9, 6, -1.8, 0);
       tagPick(g, "oyak-renault");

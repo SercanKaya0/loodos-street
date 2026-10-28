@@ -465,10 +465,13 @@ const weatherNow = () => (weatherMode === "auto" ? (eventNow() === "newyear" ? "
 /* ---------- Özel günler ---------- */
 const EVENTS = ["auto", "none", "national", "newyear"];
 let eventMode = EVENTS.includes(prefs.get("ls.event")) ? prefs.get("ls.event") : "auto";
-// Ulusal bayramlar (23 Nisan, 19 Mayıs, 30 Ağustos, 29 Ekim; 28 Ekim öğleden sonra arife) ve 20 Aralık – 2 Ocak yılbaşı
+// Ulusal bayramlar arifeden başlar: 22–23 Nisan, 18–19 Mayıs, 29–30 Ağustos, 28–29 Ekim; yılbaşı 20 Aralık – 2 Ocak
+const NATIONAL = [[4, 23], [5, 19], [8, 30], [10, 29]];
 function datedEvent(d = new Date()) {
   const m = d.getMonth() + 1, day = d.getDate();
-  if ((m === 4 && day === 23) || (m === 5 && day === 19) || (m === 8 && day === 30) || (m === 10 && day === 29) || (m === 10 && day === 28 && d.getHours() >= 13)) return "national";
+  const next = new Date(d.getFullYear(), d.getMonth(), day + 1);
+  const isDay = (mm, dd) => NATIONAL.some(([a, b]) => a === mm && b === dd);
+  if (isDay(m, day) || isDay(next.getMonth() + 1, next.getDate())) return "national";
   if ((m === 12 && day >= 20) || (m === 1 && day <= 2)) return "newyear";
   return "none";
 }
