@@ -130,6 +130,11 @@ const T = {
       "Giriş sonrası oturum kendiliğinden düşüyor", "Android 15'te kamera izni döngüye giriyor", "Kampanya linki yanlış ekrana gidiyor",
       "Harita ekranında bellek sızıntısı", "Kart ekleme formunu klavye kapatıyor", "Sadakat puanı iki kez yükleniyor", "Karanlık modda buton metni görünmüyor"],
     "ev.dispatch": "{id} · Hotfix ekibi {shop} için yola çıktı",
+    "ev.fire": "{id} · Prod yangını: {shop} · HOTFIX itfaiyesi yolda",
+    "ev.fireOut": "{id} · {shop} yangını HOTFIX ekibince {m} dk'da söndürüldü",
+    "fire.tag.spray": "Söndürülüyor", "fire.tag.out": "✓ Söndürüldü",
+    "fire.titles": ["Ödeme servisi çöktü", "API 500 hatası veriyor", "Veritabanı bağlantı havuzu doldu", "Kampanya trafiği sunucuyu yaktı",
+      "SSL sertifikasının süresi doldu", "Bellek sızıntısı sunucuyu kilitledi", "Kuyruk birikti, siparişler düşmüyor"],
     "ev.fixed": "{id} · {shop} hatası {m} dk'da çözüldü",
   },
   en: {
@@ -228,6 +233,11 @@ const T = {
       "Session drops right after login", "Camera permission loops on Android 15", "Campaign link opens the wrong screen",
       "Memory leak on the map screen", "Keyboard covers the add-card form", "Loyalty points are credited twice", "Button label invisible in dark mode"],
     "ev.dispatch": "{id} · Hotfix team on its way to {shop}",
+    "ev.fire": "{id} · Prod fire: {shop} · HOTFIX fire crew on the way",
+    "ev.fireOut": "{id} · {shop} fire put out by HOTFIX in {m} min",
+    "fire.tag.spray": "Extinguishing", "fire.tag.out": "✓ Put out",
+    "fire.titles": ["Payment service is down", "API returning 500s", "Database connection pool exhausted", "Campaign traffic melted the servers",
+      "SSL certificate expired", "Memory leak froze the server", "Queue backed up, orders not landing"],
     "ev.fixed": "{id} · {shop} bug fixed in {m} min",
   },
 };

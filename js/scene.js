@@ -1169,6 +1169,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     amb.tag.innerHTML = `<b>${m ? esc(m.id) : "HOTFIX"}</b>${esc(st)}`;
   }
   function dispatch() {
+    if (extras.busy()) { amb.timer = 15; return; }   // itfaiye sahadayken bekler
     const lot = pick(lots);
     if (!lot) { amb.timer = 60; return; }
     const proj = pick(lot.c.projects);
@@ -1238,14 +1239,15 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
         if (follow === amb) follow = null;
       }
     }
-    siren?.set(sound);
+    return sound;
   }
 
   /* ---------- Müşteri detayları, özel günler, şehir hayatı (js/extras.js) ---------- */
   const extras = buildExtras({
     world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
-    crowns: inst.crown, data, pickables, LITE, rand, pick,
+    crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent,
+    laneBusy: () => amb.state !== "idle",   // ambulans ve itfaiye aynı orta şeridi kullanır, sırayla çıkar
   });
 
   /* ---------- Instanced parçaları oluştur ---------- */
@@ -1634,8 +1636,9 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       w.g.rotation.y = w.dir > 0 ? 0 : Math.PI;
     }
     stepTrain(dt);
-    stepAmbulance(dt);
+    const ambSound = stepAmbulance(dt);
     extras.step(dt, t, { night, wx });
+    siren?.set(Math.max(ambSound, extras.siren()));
     for (const fl of flags) fl.f.rotation.y = Math.sin(t * 1.7 + fl.ph) * .28;
     stepPlanes(dt);
     for (const f of forklifts) {

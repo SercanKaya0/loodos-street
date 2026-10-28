@@ -2,6 +2,7 @@
    (gökkuşağı, kuşlar, bulut gölgeleri, dron teslimat, reklam panoları, Boğaz ve vapur).
    createStreet bir kez buildExtras(kit) çağırır; dönen nesnenin step / applyNight / setEvent'i sahneden sürülür. */
 import * as THREE from "three";
+import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const clamp01 = x => Math.min(1, Math.max(0, x));
@@ -9,7 +10,7 @@ const clamp01 = x => Math.min(1, Math.max(0, x));
 export function buildExtras(k) {
   const { world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, plazaPos, signMats, wordTexture, glowTex, flagMat, flagTex, crowns, data,
-    pickables, LITE, rand, pick } = k;
+    pickables, LITE, rand, pick, tt, onEvent, laneBusy } = k;
   const anim = [];            // her karede (dt, t) ile çağrılır
   const nightFx = [];         // applyNight'ta (lit) ile çağrılır
   const flatGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -707,6 +708,195 @@ export function buildExtras(k) {
     });
   }
 
+  /* ================= Prod yangını ve HOTFIX itfaiyesi ================= */
+  // Ara sıra bir dükkânın çatısında "prod yangını" çıkar; HOTFIX itfaiyesi sirenle gelir, iki itfaiyeci
+  // hortumla su sıkar, yangın söner, araç sokaktan ayrılır. Süreler simülasyon: 1 sn = 1 dk.
+  const fire = { state: "idle", timer: 60, x: 0, dir: 1, speed: 0, target: null, inc: null, level: 0, seq: 3100 + Math.floor(Math.random() * 400), t0: 0, sound: 0 };
+  const fireRed = mat(0xc62a2f, { roughness: .45 });
+  const flashA = new THREE.MeshStandardMaterial({ color: 0xff2d2d, emissive: 0xff2d2d, emissiveIntensity: .2 });
+  const flashB = new THREE.MeshStandardMaterial({ color: 0x2d6bff, emissive: 0x2d6bff, emissiveIntensity: .2 });
+  const truck = new THREE.Group();
+  {
+    box(truck, 4.6, 2.1, 2.2, fireRed, -.6, .55, 0);
+    box(truck, 1.5, 1.9, 2.2, fireRed, 2.4, .55, 0);
+    box(truck, .1, .8, 1.9, M.glassDark, 3.16, 1.4, 0, false);
+    box(truck, 6.2, .22, 2.24, M.white, 0, 1.15, 0, false);
+    const tex = wordTexture("HOTFIX", { bg: "#c62a2f", color: "#ffffff", sub: "LOODOS · INCIDENT", h: 160, w: 640 });
+    const face = emissiveFace(tex);
+    const side = new THREE.Mesh(BOX, [fireRed, fireRed, fireRed, fireRed, face, face]);
+    side.scale.set(3.6, .8, 2.24); side.position.set(-.8, 2.05, 0);
+    truck.add(side);
+    // Çatıdaki merdiven
+    for (const z of [-.45, .45]) box(truck, 5.4, .12, .1, M.white, -.7, 2.75, z, false);
+    for (let x = -3.2; x <= 1.8; x += .6) box(truck, .08, .1, .9, M.white, x, 2.75, 0, false);
+    box(truck, .5, .26, .7, flashA, 2.4, 2.45, -.45, false);
+    box(truck, .5, .26, .7, flashB, 2.4, 2.45, .45, false);
+    for (const x of [2.4, -.6, -2.6]) for (const s of [-1, 1]) {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(.45, .45, .3, 14), M.wheel);
+      w.rotation.x = Math.PI / 2; w.position.set(x, .45, s * 1.1); truck.add(w);
+    }
+    truck.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    truck.visible = false;
+    world.add(truck);
+    pickables.push(truck);
+  }
+  const fireWrap = document.createElement("div");
+  fireWrap.className = "lbl";
+  const fireTag = document.createElement("button");
+  fireTag.className = "veh-tag amb";
+  fireWrap.appendChild(fireTag);
+  const fireLabel = new CSS2DObject(fireWrap);
+  fireLabel.position.set(0, 4.2, 0);
+  fireLabel.visible = false;
+  truck.add(fireLabel);
+  const escHtml = s => String(s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  function fireTagText() {
+    if (!fire.inc) return;
+    const st = fire.state === "enroute" ? "→ " + fire.inc.company.name : fire.state === "spray" ? tt("fire.tag.spray") : tt("fire.tag.out");
+    fireTag.innerHTML = `<b>${escHtml(fire.inc.id)}</b>${escHtml(st)}`;
+  }
+  // Alevler ve duman: sprite havuzu, çatının üstünde yükselip söner
+  const flameMats = [0xff6a1a, 0xffa21a, 0xffd23a].map(c => new THREE.SpriteMaterial({ map: glowTex, color: c, transparent: true, depthWrite: false }));
+  const smokeMat = new THREE.SpriteMaterial({ map: glowTex, color: 0x4d5459, transparent: true, opacity: .55, depthWrite: false });
+  const flames = [], smoke = [];
+  for (let i = 0; i < 22; i++) { const s = new THREE.Sprite(flameMats[i % 3]); s.visible = false; world.add(s); flames.push({ s, p: Math.random(), dx: 0, dz: 0 }); }
+  for (let i = 0; i < 10; i++) { const s = new THREE.Sprite(smokeMat); s.visible = false; world.add(s); smoke.push({ s, p: Math.random(), dx: 0, dz: 0 }); }
+  const fireGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff7a2a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+  fireGlow.visible = false;
+  world.add(fireGlow);
+  // İtfaiyeciler ve su
+  const crew = [0, 1].map(() => {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.24, .6, 4, 8), mat(0x2b2f36, { roughness: .8 }));
+    body.position.y = .55; body.castShadow = true;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(.26, .26, .08, 12), mat(0xf2d33a, { emissive: 0xf2d33a, emissiveIntensity: .3 }));
+    band.position.y = .55;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.2, 10, 8), mat(0xe8c4a0));
+    head.position.y = 1.2;
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(.24, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), fireRed);
+    helmet.position.y = 1.26;
+    g.add(body, band, head, helmet);
+    g.visible = false;
+    world.add(g);
+    return g;
+  });
+  const WATER = LITE ? 60 : 110;
+  const waterPos = new Float32Array(WATER * 2 * 3), waterK = Float32Array.from({ length: WATER * 2 }, () => Math.random());
+  const waterGeo = new THREE.BufferGeometry();
+  waterGeo.setAttribute("position", new THREE.BufferAttribute(waterPos, 3));
+  const water = new THREE.Points(waterGeo, new THREE.PointsMaterial({ color: 0x6cc4ff, size: 5.5, sizeAttenuation: false, map: glowTex, transparent: true, depthWrite: false }));
+  water.frustumCulled = false;
+  water.visible = false;
+  world.add(water);
+  const roofPt = new THREE.Vector3(), nozzles = [new THREE.Vector3(), new THREE.Vector3()];
+
+  function igniteFire() {
+    const ids = [...companies.keys()];
+    const id = pick(ids), c = companies.get(id);
+    fire.seq += 3 + Math.floor(Math.random() * 30);
+    fire.target = c;
+    fire.inc = { id: "INC-" + fire.seq, title: pick(tt("fire.titles")), company: { id, name: data.companies.find(x => x.id === id)?.name || id } };
+    c.group.updateMatrixWorld(true);
+    roofPt.copy(c.group.localToWorld(new THREE.Vector3(0, c.roof, -1.5)));
+    fire.dir = Math.random() < .5 ? 1 : -1;
+    fire.x = fire.dir > 0 ? X_MIN - 14 : X_MAX + 14;
+    fire.speed = 15;
+    fire.level = 0;
+    fire.t0 = 0;
+    fire.state = "enroute";
+    truck.position.set(fire.x, 0, 0);
+    truck.rotation.y = fire.dir > 0 ? 0 : Math.PI;
+    truck.visible = true;
+    fireLabel.visible = true;
+    truck.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "company", id }; });
+    for (const f of [...flames, ...smoke]) { f.dx = rand(-2, 2); f.dz = rand(-2, 2); f.s.userData.pick = { kind: "company", id }; }
+    fireTagText();
+    onEvent?.({ kind: "fire", company: id, text: tt("ev.fire", { id: fire.inc.id, shop: fire.inc.company.name }), sub: fire.inc.title, at: new Date() });
+  }
+  function stepFire(dt, t) {
+    fire.sound = 0;
+    if (fire.state === "idle") {
+      if ((fire.timer -= dt) <= 0) { if (laneBusy()) fire.timer = 12; else igniteFire(); }
+    } else {
+      fire.t0 += dt;
+      const L = fire.target.lot;
+      let want = 15;
+      if (fire.state === "enroute") {
+        fire.level = Math.min(1, fire.level + dt * .4);
+        const rem = (L.x - fire.x) * fire.dir;
+        if (rem < 14) want = Math.max(1.5, 15 * rem / 14);
+        if (rem <= .3) {
+          fire.state = "spray"; fire.speed = 0; want = 0; fire.timer = 9; fireTagText();
+          const curb = L.side * 4.2;
+          crew[0].position.set(L.x - 1.6, .18, curb);
+          crew[1].position.set(L.x + 1.6, .18, curb);
+          for (const c of crew) { c.visible = true; c.rotation.y = L.side > 0 ? -Math.PI / 2 : Math.PI / 2; }
+        }
+      } else if (fire.state === "spray") {
+        want = 0;
+        fire.level = Math.max(0, fire.level - dt / 7);
+        if ((fire.timer -= dt) <= 0) {
+          fire.state = "leaving"; fire.level = 0; fireTagText();
+          for (const c of crew) c.visible = false;
+          onEvent?.({ kind: "fire", company: fire.inc.company.id, text: tt("ev.fireOut", { id: fire.inc.id, shop: fire.inc.company.name, m: Math.round(fire.t0) }), sub: fire.inc.title, at: new Date() });
+        }
+      }
+      fire.speed += (want - fire.speed) * Math.min(1, dt * 3);
+      fire.x += fire.dir * fire.speed * dt;
+      truck.position.x = fire.x;
+      const flip = Math.floor(t * 6) % 2;
+      flashA.emissiveIntensity = flip ? 3.2 : .15;
+      flashB.emissiveIntensity = flip ? .15 : 3.2;
+      if (fire.state !== "spray") {
+        const half = VIEW * el.clientWidth / el.clientHeight / 2 / camera.zoom;
+        fire.sound = Math.min(1, Math.max(0, 1.2 - Math.abs(fire.x - controls.target.x) / half));
+      }
+      if (fire.state === "leaving" && (fire.x > X_MAX + 16 || fire.x < X_MIN - 16)) {
+        fire.state = "idle"; fire.timer = rand(80, 140);
+        truck.visible = false; fireLabel.visible = false;
+      }
+    }
+    // Alev ve duman
+    const lv = fire.level, burning = lv > .01;
+    for (const f of flames) {
+      f.s.visible = burning;
+      if (!burning) continue;
+      f.p += dt * (1.2 + (f.dx + 2) * .1);
+      if (f.p > 1) { f.p -= 1; f.dx = rand(-2, 2) * lv; f.dz = rand(-2, 2) * lv; }
+      const size = (1.6 + (1 - f.p) * 1.8) * lv;
+      f.s.position.set(roofPt.x + f.dx * (1 - f.p * .5), roofPt.y + .3 + f.p * 3.2 * lv, roofPt.z + f.dz * (1 - f.p * .5));
+      f.s.scale.set(size, size * 1.3, 1);
+      f.s.material.opacity = .9;
+    }
+    const smoky = burning || (fire.state === "spray") || (fire.state === "leaving" && fire.t0 < 999 && smoke[0].s.visible);
+    for (const sm of smoke) {
+      sm.s.visible = smoky && (burning || sm.p < .98);
+      if (!sm.s.visible) continue;
+      sm.p += dt * .22;
+      if (sm.p > 1) { if (!burning) { sm.s.visible = false; continue; } sm.p -= 1; sm.dx = rand(-1.5, 1.5); }
+      const size = 2 + sm.p * 6;
+      sm.s.position.set(roofPt.x + sm.dx + sm.p * 3, roofPt.y + 2.5 + sm.p * 12, roofPt.z + sm.dz);
+      sm.s.scale.set(size, size, 1);
+    }
+    smokeMat.opacity = .5 * Math.max(lv, fire.state === "spray" ? .6 : 0);
+    fireGlow.visible = burning && lit > .1;
+    if (fireGlow.visible) { fireGlow.position.copy(roofPt).y += 1.5; fireGlow.scale.setScalar(14 * lv); fireGlow.material.opacity = .8 * lit * lv; }
+    // Su: iki itfaiyecinin elinden çatıya kavisli huzme
+    water.visible = fire.state === "spray";
+    if (water.visible) {
+      crew.forEach((c, i) => nozzles[i].set(c.position.x, 1.1, c.position.z));
+      for (let i = 0; i < WATER * 2; i++) {
+        const n = nozzles[i < WATER ? 0 : 1];
+        waterK[i] = (waterK[i] + dt * 1.4) % 1;
+        const s = waterK[i];
+        waterPos[i * 3] = n.x + (roofPt.x - n.x) * s + Math.sin(i) * .15;
+        waterPos[i * 3 + 1] = n.y + (roofPt.y + 1 - n.y) * s + Math.sin(Math.PI * s) * 4;
+        waterPos[i * 3 + 2] = n.z + (roofPt.z - n.z) * s + Math.cos(i) * .15;
+      }
+      waterGeo.attributes.position.needsUpdate = true;
+    }
+  }
+
   /* ================= Kare ve gece ================= */
   let lit = 0;
   function applyNight(l) {
@@ -719,6 +909,7 @@ export function buildExtras(k) {
   const tmp = new THREE.Color();
   function step(dt, t, { night, wx }) {
     for (const fn of anim) fn(dt, t);
+    stepFire(dt, t);
 
     // Havai fişek (bayram ve yılbaşı, alacakaranlıktan itibaren)
     const fwOn = (event === "national" || event === "newyear") && lit > .3;
@@ -800,5 +991,5 @@ export function buildExtras(k) {
     }
   }
 
-  return { step, applyNight, setEvent, seaZ: FAR };
+  return { step, applyNight, setEvent, seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
 }

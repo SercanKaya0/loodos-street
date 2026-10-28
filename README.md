@@ -11,6 +11,7 @@ Loodos'un müşteri projelerini izometrik bir sokakta gezdiren etkileşimli hari
 - Müşteri detayları: Petrol Ofisi akaryakıt istasyonu, Oyak Renault galerisi, Bosch robot kolları, Zorlu rüzgâr türbinleri, İKSV konser sahnesi, WeWALK akıllı bastonlu yaya, kafelerde oturan müşteriler ve tüten buhar. Tıklanınca ilgili dükkân açılır.
 - Özel günler: tema menüsünden Tarihe göre / Yok / Ulusal bayram / Yılbaşı. Bayramda direklerde Türk bayrakları, merkezde dev bayrak ve akşam havai fişek; yılbaşında ağaç ışıkları, meydanda yılbaşı ağacı ve kar.
 - Şehir hayatı: saate göre trafik, yağmurdan sonra gökkuşağı, kuş sürüsü, bulut gölgeleri, A101 dron teslimatı, dönen dijital reklam panoları, Boğaz ve vapurlar.
+- Prod yangını: ara sıra bir dükkânın çatısında yangın çıkar; HOTFIX itfaiyesi sirenle gelir, itfaiyeciler hortumla söndürür, olay INC numarasıyla canlı akışa düşer.
 - Hava: tema menüsünden Mevsime göre / Açık / Yağmur / Kar. Mevsim modu her ay için yağmur ve kar olasılığını kullanır; hava 3 saatlik dilimlerle değişir. Kar yağdıkça çatılar ve ağaçlar beyazlar, sağanakta şimşek çakar.
 - Bug ambulansı: ara sıra kısık sirenle bir dükkâna gider, hatayı yerinde çözer; panelde görev adımları ve oturumluk bug hesabı (1 sn = 1 dk). Siren sağdaki hoparlör düğmesiyle kapatılır.
 - Sahne: Three.js r160 (`vendor/three`, CDN'siz). WebGL yoksa liste görünümüne düşer.
