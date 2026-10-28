@@ -377,6 +377,17 @@ svg { display: block; }
 .stage.far .pin-card { padding-right: 5px; height: 30px; }
 .stage.far .pin:hover .pin-name, .stage.far .pin.on .pin-name { display: inline; }
 
+/* Mégane'ın plaka etiketi: gerçek TR plakası görünümünde */
+.plate-tag {
+  position: absolute; left: 0; bottom: 0; transform: translateX(-50%); pointer-events: auto; cursor: pointer;
+  display: flex; align-items: stretch; height: 22px; padding: 0; border: 2px solid #111; border-radius: 4px;
+  background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); overflow: hidden; white-space: nowrap;
+}
+.plate-tag .tr { display: grid; place-items: end center; width: 13px; padding-bottom: 1px; background: #1f4fbf; color: #fff; font: 700 7px var(--f-display); }
+.plate-tag .no { display: grid; place-items: center; padding: 0 7px; color: #111; font: 800 13px/1 var(--f-display); letter-spacing: .06em; }
+.plate-tag:hover { transform: translateX(-50%) translateY(-2px); }
+.stage.far .plate-tag { display: none; }
+
 .dist-lbl {
   position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: auto;
   display: flex; align-items: center; gap: 7px; padding: 5px 11px 5px 7px; border-radius: 99px;

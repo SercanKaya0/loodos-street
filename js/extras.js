@@ -10,7 +10,7 @@ const clamp01 = x => Math.min(1, Math.max(0, x));
 export function buildExtras(k) {
   const { world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagTex, crowns, data,
-    pickables, LITE, rand, pick, tt, onEvent, laneBusy } = k;
+    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany } = k;
   const anim = [];            // her karede (dt, t) ile çağrılır
   const nightFx = [];         // applyNight'ta (lit) ile çağrılır
   const flatGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -128,17 +128,21 @@ export function buildExtras(k) {
     box(g, .06, .08, 1.5, tail, -2.17, .84, 0, false);
     // Plaka: beyaz zemin, solda mavi TR şeridi
     const cv = document.createElement("canvas");
-    cv.width = 260; cv.height = 56;
+    cv.width = 1040; cv.height = 224;
     const c = cv.getContext("2d");
-    c.fillStyle = "#ffffff"; c.fillRect(0, 0, 260, 56);
-    c.fillStyle = "#1f4fbf"; c.fillRect(0, 0, 26, 56);
-    c.fillStyle = "#ffffff"; c.font = "700 14px sans-serif"; c.textAlign = "center"; c.fillText("TR", 13, 48);
-    c.fillStyle = "#111111"; c.font = "700 36px sans-serif"; c.fillText("06 DZZ 227", 143, 41);
+    c.fillStyle = "#ffffff"; c.fillRect(0, 0, 1040, 224);
+    c.strokeStyle = "#111111"; c.lineWidth = 12; c.strokeRect(6, 6, 1028, 212);
+    c.fillStyle = "#1f4fbf"; c.fillRect(12, 12, 110, 200);
+    c.fillStyle = "#ffffff"; c.font = "700 58px sans-serif"; c.textAlign = "center"; c.fillText("TR", 67, 190);
+    c.fillStyle = "#111111"; c.font = "800 168px sans-serif";
+    while (c.measureText("06 DZZ 227").width > 880) c.font = c.font.replace(/\d+px/, m => parseInt(m) - 4 + "px");
+    c.textBaseline = "middle"; c.fillText("06 DZZ 227", 585, 118);
     const plateTex = new THREE.CanvasTexture(cv);
     plateTex.colorSpace = THREE.SRGBColorSpace;
+    plateTex.anisotropy = 8;
     const plateMat = new THREE.MeshStandardMaterial({ map: plateTex, roughness: .5 });
     for (const [x, y, ry] of [[2.21, .44, Math.PI / 2], [-2.21, .5, -Math.PI / 2]]) {
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(.58, .125), plateMat);
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(.62, .134), plateMat);
       p.position.set(x, y, 0); p.rotation.y = ry; g.add(p);
     }
     return g;
@@ -182,6 +186,18 @@ export function buildExtras(k) {
       anim.push(dt => { turntable.rotation.y += dt * .4; });
       groundGlow(podium, 6, 6, 0, 0, 0xffffff, .5);
       tagPick(podium, "oyak-renault");
+      // Plaka etiketi: araçtaki plaka izometrik görünümde birkaç piksel kalır; üstte HTML ile keskin bir kopyası durur
+      const wrap = document.createElement("div");
+      wrap.className = "lbl";
+      const plate = document.createElement("button");
+      plate.className = "plate-tag";
+      plate.setAttribute("aria-label", "Renault Mégane · 06 DZZ 227");
+      plate.innerHTML = `<span class="tr">TR</span><span class="no">06 DZZ 227</span>`;
+      plate.addEventListener("click", e => { e.stopPropagation(); selectCompany?.("oyak-renault"); });
+      wrap.appendChild(plate);
+      const plateLabel = new CSS2DObject(wrap);
+      plateLabel.position.set(0, 2.4, 0);
+      podium.add(plateLabel);
       totem(g, wordTexture("RENAULT", { bg: "#f6c400", color: "#111111", h: 160, w: 480 }), yellow, -5.6, 3.2);
       groundGlow(g, 9, 6, -1.8, 0);
       tagPick(g, "oyak-renault");

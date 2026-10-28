@@ -1250,6 +1250,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
     crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent,
     laneBusy: () => amb.state !== "idle",   // ambulans ve itfaiye aynı orta şeridi kullanır, sırayla çıkar
+    selectCompany: id => select("company", id, true),
   });
 
   /* ---------- Instanced parçaları oluştur ---------- */
