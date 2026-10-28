@@ -10,7 +10,7 @@ const clamp01 = x => Math.min(1, Math.max(0, x));
 export function buildExtras(k) {
   const { world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagTex, crowns, data,
-    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany } = k;
+    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany, selectLead, selectHQ, leadX } = k;
   const anim = [];            // her karede (dt, t) ile çağrılır
   const nightFx = [];         // applyNight'ta (lit) ile çağrılır
   const flatGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -521,6 +521,7 @@ export function buildExtras(k) {
         shout.textContent = "📰 " + tt("news.release", { app: r.name, v });
         shout.classList.add("show");
         tagPick(kid, r.id);
+        impactAdd("rel");
         if (t - st.lastFeed > 20) { st.lastFeed = t; onEvent?.({ kind: "news", company: r.id, text: tt("news.feed", { app: r.name, v }), sub: tt("news.sub"), at: new Date() }); }
         // Gazeteyi dükkânın önüne fırlat
         const l = lotOf(r.id);
@@ -1146,7 +1147,7 @@ export function buildExtras(k) {
         if ((fire.timer -= dt) <= 0) {
           fire.state = "leaving"; fire.level = 0; fireTagText();
           for (const c of crew) c.visible = false;
-          onEvent?.({ kind: "fire", company: fire.inc.company.id, text: tt("ev.fireOut", { id: fire.inc.id, shop: fire.inc.company.name, m: Math.round(fire.t0) }), sub: fire.inc.title, at: new Date() });
+          onEvent?.({ kind: "fire", resolved: true, company: fire.inc.company.id, text: tt("ev.fireOut", { id: fire.inc.id, shop: fire.inc.company.name, m: Math.round(fire.t0) }), sub: fire.inc.title, at: new Date() });
         }
       }
       fire.speed += (want - fire.speed) * Math.min(1, dt * 3);
@@ -1203,6 +1204,200 @@ export function buildExtras(k) {
       }
       waterGeo.attributes.position.needsUpdate = true;
     }
+  }
+
+  /* ================= Değer: ziyaretçi parseli, etki kulesi, vaka kupaları ================= */
+  function pinLabel(parent, y, html, color, onClick) {
+    const wrap = document.createElement("div");
+    wrap.className = "lbl";
+    const b = document.createElement("button");
+    b.className = "pin";
+    b.style.setProperty("--c", color);
+    b.innerHTML = `<span class="pin-card">${html}</span><span class="pin-stem"></span>`;
+    b.addEventListener("click", e => { e.stopPropagation(); onClick(); });
+    wrap.appendChild(b);
+    const o = new CSS2DObject(wrap);
+    o.position.set(0, y, 0);
+    parent.add(o);
+    return b;
+  }
+  function canvasTex(w, h) {
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return { ctx: cv.getContext("2d"), tex };
+  }
+
+  // 1) "Bu dükkân sizin olabilir": şantiye parseli; seçilen ürün sayısı kadar kat yükselir
+  const leadG = new THREE.Group();
+  leadG.position.set(leadX, 0, -LOT_Z);
+  world.add(leadG);
+  const floors = [];
+  let leadTarget = 0;
+  {
+    plane(leadG, 11, 11.4, mat(0xd9c8a5, { roughness: 1 }), 0, .045, .3);
+    const fence = mat(0x1ab0ba, { roughness: .6 });
+    for (const [w, x, z, ry] of [[11, 0, -5.3, 0], [11.2, -5.5, .3, Math.PI / 2], [11.2, 5.5, .3, Math.PI / 2]]) box(leadG, w, .9, .08, fence, x, 0, z).rotation.y = ry;
+    for (const x of [-3.6, 3.6]) box(leadG, 3.8, 1.6, .1, M.white, x, 0, 5.8);   // ön panolar, ortada giriş
+    const shell = mat(0xc9cfd2, { roughness: .9 }), glass = mat(0x8fd3da, { roughness: .2, metalness: .15, emissive: 0xffd9a0, emissiveIntensity: 0 });
+    nightFx.push(l => { glass.emissiveIntensity = .7 * l; });
+    for (let i = 0; i < 10; i++) {
+      const f = new THREE.Group();
+      f.position.y = .2 + i * 1.7;
+      box(f, 8, .25, 7, shell, 0, 0, 0);
+      box(f, 7.8, 1.2, 6.8, glass, 0, .25, 0);
+      for (const [x, z] of [[-3.9, -3.4], [3.9, -3.4], [-3.9, 3.4], [3.9, 3.4]]) box(f, .2, 1.45, .2, shell, x, .25, z);
+      f.scale.y = .001;
+      f.visible = false;
+      leadG.add(f);
+      floors.push(f);
+    }
+    // Kule vinç: dönen kol, sarkan kanca
+    cyl(leadG, .25, .25, 22, M.amber, 4.8, 0, -4.4, 6);
+    const jib = new THREE.Group();
+    jib.position.set(4.8, 22, -4.4);
+    leadG.add(jib);
+    box(jib, 14, .35, .35, M.amber, -4, 0, 0);
+    box(jib, 2, 1, 1, M.ink, 3.5, -.3, 0);
+    const hook = box(jib, .06, 6, .06, M.ink, -8, -6, 0, false);
+    box(jib, .5, .5, .5, M.pallet, -8, -6.5, 0);
+    anim.push((dt, t) => { jib.rotation.y = Math.sin(t * .15) * 1.1; hook.scale.y = 1; });
+    // Tabela
+    const { ctx, tex } = canvasTex(1024, 384);
+    ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, 1024, 384);
+    ctx.fillStyle = "#1ab0ba"; ctx.fillRect(0, 0, 18, 384);
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+    ctx.fillStyle = "#1ab0ba"; ctx.font = `800 64px "Red Hat Display"`; ctx.fillText(tt("lead.sign1"), 60, 110);
+    ctx.fillStyle = "#ffffff"; ctx.font = `800 96px "Red Hat Display"`; ctx.fillText(tt("lead.sign2"), 60, 222);
+    ctx.fillStyle = "#bfeff2"; ctx.font = `600 42px "Red Hat Display"`; ctx.fillText(tt("lead.sign3"), 60, 310);
+    tex.needsUpdate = true;
+    const face = emissiveFace(tex);
+    const sign = new THREE.Mesh(BOX, [M.ink, M.ink, M.ink, M.ink, face, face]);
+    sign.scale.set(6.6, 2.5, .2);
+    sign.position.set(-2.2, 3.2, 5.95);
+    leadG.add(sign);
+    for (const x of [-5.2, .8]) box(leadG, .2, 2, .2, M.ink, x, 0, 5.95);
+    leadG.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "lead", id: "lead" }; });
+    pickables.push(leadG);
+    pinLabel(leadG, 9, `<span class="pin-logo" style="background:#1ab0ba;color:#fff;font:800 14px var(--f-display)">＋</span><span class="pin-name">${escHtml(tt("lead.name"))}<small>${escHtml(tt("lead.kicker"))}</small></span>`, "#1ab0ba", () => selectLead?.());
+  }
+  anim.push(dt => {
+    floors.forEach((f, i) => {
+      const want = i < leadTarget ? 1 : 0;
+      f.scale.y += (want - f.scale.y) * Math.min(1, dt * 2.5);
+      f.visible = f.scale.y > .01;
+    });
+  });
+  function setLead(n) { leadTarget = Math.min(floors.length, n > 0 ? n + 1 : 0); }
+
+  // 2) Etki kulesi: sokakta olanlar kat kat yanar; her 10 puanda tepede ışık gösterisi
+  const impact = { del: 0, rel: 0, bug: 0, fire: 0, score: 0, milestone: 0 };
+  const towerFloors = [];
+  const tower = new THREE.Group();
+  tower.position.set(hqX - 17, 0, hq.position.z - 1);
+  world.add(tower);
+  const towerScreen = canvasTex(512, 640);
+  {
+    box(tower, 7, 1, 7, M.wall2, 0, 0, 0);
+    for (let i = 0; i < 20; i++) {
+      const m = new THREE.MeshStandardMaterial({ color: 0x24434c, roughness: .25, metalness: .2, emissive: 0x1ab0ba, emissiveIntensity: 0 });
+      box(tower, 5.2, 1, 5.2, m, 0, 1 + i * 1.2, 0);
+      box(tower, 5.5, .2, 5.5, M.white, 0, 1 + i * 1.2 + 1, 0, false);
+      towerFloors.push(m);
+    }
+    box(tower, 5.8, .6, 5.8, M.teal, 0, 25, 0);
+    const face = new THREE.MeshStandardMaterial({ map: towerScreen.tex, emissive: 0xffffff, emissiveMap: towerScreen.tex, emissiveIntensity: .9, roughness: .5 });
+    const scr = new THREE.Mesh(BOX, [M.ink, M.ink, M.ink, M.ink, face, M.ink]);
+    scr.scale.set(4.6, 5.75, .3);
+    scr.position.set(0, 18, 2.75);
+    tower.add(scr);
+    tower.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "hq", id: "loodos" }; });
+    pickables.push(tower);
+  }
+  const towerRing = new THREE.Mesh(new THREE.RingGeometry(3.4, 4, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1ab0ba, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+  towerRing.position.y = 25.8;
+  tower.add(towerRing);
+  let ringT = 0;
+  function drawTower() {
+    const c = towerScreen.ctx;
+    c.fillStyle = "#0a0f12"; c.fillRect(0, 0, 512, 640);
+    c.fillStyle = "#1ab0ba"; c.fillRect(0, 0, 512, 10);
+    c.textAlign = "left"; c.textBaseline = "alphabetic";
+    c.fillStyle = "#1ab0ba"; c.font = `800 40px "Red Hat Display"`; c.fillText(tt("impact.title"), 30, 70);
+    c.fillStyle = "#ffffff"; c.font = `800 72px "Red Hat Display"`; c.fillText(data.kpis[0]?.[0] || "", 30, 160);
+    c.fillStyle = "#bfeff2"; c.font = `600 26px "Red Hat Display"`; c.fillText(data.kpis[0]?.[1] || "", 30, 196);
+    [["del", impact.del], ["rel", impact.rel], ["bug", impact.bug], ["fire", impact.fire]].forEach(([key, v], i) => {
+      const y = 280 + i * 92;
+      c.fillStyle = "#1c2a31"; c.fillRect(30, y - 58, 452, 76);
+      c.fillStyle = "#ffffff"; c.font = `800 52px "Red Hat Display"`; c.fillText(String(v), 50, y);
+      c.fillStyle = "#bfeff2"; c.font = `600 26px "Red Hat Display"`; c.fillText(tt("impact." + key), 170, y - 8);
+    });
+    towerScreen.tex.needsUpdate = true;
+  }
+  function impactAdd(key) {
+    impact[key]++;
+    impact.score += key === "del" || key === "rel" ? 1 : 2;
+    drawTower();
+    towerFloors.forEach((m, i) => { m.emissiveIntensity = i < Math.min(20, impact.score) ? .9 : 0; });
+    if (Math.floor(impact.score / 10) > impact.milestone) {
+      impact.milestone = Math.floor(impact.score / 10);
+      ringT = 2.5;
+      const p = tower.position;
+      burst(p.x, 27, p.z, 0x1ab0ba);
+    }
+  }
+  function note(ev) {
+    if (ev.kind === "delivery") impactAdd("del");
+    else if (ev.kind === "bug" && ev.resolved) impactAdd("bug");
+    else if (ev.kind === "fire" && ev.resolved) impactAdd("fire");
+  }
+  drawTower();
+  anim.push(dt => {
+    if (ringT <= 0) { towerRing.material.opacity = 0; return; }
+    ringT -= dt;
+    const k = 1 - ringT / 2.5;
+    towerRing.scale.setScalar(1 + k * 2.5);
+    towerRing.material.opacity = .8 * (1 - k);
+  });
+  pinLabel(tower, 28.5, `<span class="pin-logo" style="background:#0a0a0a;color:#fff;font:800 13px var(--f-display)">↑</span><span class="pin-name">${escHtml(tt("impact.pin"))}</span>`, "#1ab0ba", () => selectHQ?.());
+
+  // 3) Vaka kupaları: meydanın önünde en güçlü rakamlar; tıklanınca vaka (PDF bağlantısıyla) açılır
+  {
+    const gold = new THREE.MeshStandardMaterial({ color: 0xd4a72c, roughness: .25, metalness: .9, emissive: 0x6b4a00, emissiveIntensity: .2 });
+    const ids = ["vodafone", "a101", "petrol-ofisi", "lc-waikiki", "wewalk"].filter(id => companies.has(id));
+    ids.forEach((id, i) => {
+      const c = data.companies.find(x => x.id === id), m = c?.projects.find(p => p.metrics.length)?.metrics[0];
+      if (!m) return;
+      const g = new THREE.Group();
+      g.position.set(plazaPos.x - 7 + i * 3.5, 0, plazaPos.z - 5.3);
+      world.add(g);
+      box(g, 1.3, 1.1, 1.3, M.white, 0, 0, 0);
+      box(g, 1.36, .12, 1.36, M.teal, 0, 1.1, 0, false);
+      const cup = new THREE.Group();
+      cup.position.y = 1.22;
+      g.add(cup);
+      cyl(cup, .32, .38, .14, gold, 0, 0, 0, 16);
+      cyl(cup, .06, .08, .45, gold, 0, .14, 0, 10);
+      const bowl = new THREE.Mesh(new THREE.CylinderGeometry(.45, .18, .6, 18, 1, true), gold);
+      bowl.position.y = .9; bowl.castShadow = true; cup.add(bowl);
+      for (const s of [-1, 1]) { const h = new THREE.Mesh(new THREE.TorusGeometry(.15, .035, 6, 14, Math.PI), gold); h.position.set(s * .47, .95, 0); h.rotation.z = -s * Math.PI / 2; cup.add(h); }
+      anim.push(dt => { cup.rotation.y += dt * .6; });
+      tagPick(g, id);
+      pickables.push(g);
+      const wrap = document.createElement("div");
+      wrap.className = "lbl";
+      const tag = document.createElement("button");
+      tag.className = "trophy-tag";
+      tag.innerHTML = `<b>${escHtml(m[0])}</b>${escHtml(c.name)}`;
+      tag.title = `${m[0]} ${m[1]}`;
+      tag.addEventListener("click", e => { e.stopPropagation(); selectCompany?.(id); });
+      wrap.appendChild(tag);
+      const o = new CSS2DObject(wrap);
+      o.position.set(0, 2.9, 0);
+      g.add(o);
+    });
   }
 
   /* ================= Kare ve gece ================= */
@@ -1299,5 +1494,5 @@ export function buildExtras(k) {
     }
   }
 
-  return { step, applyNight, setEvent, seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
+  return { step, applyNight, setEvent, setLead, note, seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
 }

@@ -616,6 +616,14 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     world.add(o);
   }
 
+  // "Bu dükkân sizin olabilir": sokağın doğu ucundaki boş parsel. Ziyaretçinin seçtiği ürünlerin kamyonları buraya da uğrar.
+  const lastD = districts[districts.length - 1];
+  const leadLot = { c: { id: "lead", name: tt("lead.name"), projects: [{ prods: [] }] }, s: { id: "lead", name: tt("lead.kicker"), color: "#1ab0ba" }, x: lastD.x1 + 12, side: -1 };
+  lots.push(leadLot);
+  // Olaylar etki kulesinin sayaçlarından geçip arayüze gider (extras sahne kurulduktan sonra bağlanır)
+  let extrasRef = null;
+  const notify = ev => { extrasRef?.note(ev); onEvent?.(ev); };
+
   /* ---------- Araçlar ve yayalar ---------- */
   function wheels(g, xs, z, r = .42) {
     for (const x of xs) for (const s of [-1, 1]) {
@@ -725,7 +733,8 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const vehicles = [];
   const typeName = type => tt("veh." + type);
   // Her teslimat aracı bir Loodos ürünü taşır ve yalnızca o ürünü kullanan dükkânlara uğrar.
-  const deliverable = data.products.filter(p => lots.some(l => usesProduct(l.c, p.id)));
+  // Ziyaretçi parseli için ürün seçtikçe teslim edilebilir ürünler değişir; her seferinde yeniden hesaplanır
+  const deliverableNow = () => data.products.filter(p => lots.some(l => usesProduct(l.c, p.id)));
   const lotsFor = pid => lots.filter(l => usesProduct(l.c, pid));
   let glowProd = null;
   let seq = 1040;
@@ -763,6 +772,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   function newDest(v, reload = false) {
     const ahead = pid => lotsFor(pid).filter(l => (l.x - v.x) * v.dir > 8).sort((a, b) => (a.x - b.x) * v.dir);
     if (reload || !v.prod) {
+      const deliverable = deliverableNow();
       const reachable = deliverable.filter(p => ahead(p.id).length);
       const pool = reachable.length ? reachable : deliverable;
       // En az aracın taşıdığı ürün seçilir; böylece sokakta her ürünün kamyonu dolaşır.
@@ -1272,7 +1282,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   }
   function dispatch() {
     if (extras.busy()) { amb.timer = 15; return; }   // itfaiye sahadayken bekler
-    const lot = pick(lots);
+    const lot = pick(lots.filter(l => l.c.id !== "lead"));
     if (!lot) { amb.timer = 60; return; }
     const proj = pick(lot.c.projects);
     const platforms = proj.tech.filter(x => /ios|android|huawei|web|react|flutter|kotlin|swift/i.test(x));
@@ -1295,7 +1305,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     amb.mesh.visible = true;
     amb.label.visible = true;
     ambTag();
-    onEvent?.({ kind: "bug", company: lot.c.id, text: tt("ev.dispatch", { id: amb.mission.id, shop: lot.c.name }), sub: amb.mission.title, at: new Date() });
+    notify({ kind: "bug", company: lot.c.id, text: tt("ev.dispatch", { id: amb.mission.id, shop: lot.c.name }), sub: amb.mission.title, at: new Date() });
   }
   function stepAmbulance(dt) {
     let sound = 0;
@@ -1319,7 +1329,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
           amb.stats.fixMin += m.tFixed - m.t0;
           amb.stats.respMin += m.tArrive - m.t0;
           ambTag();
-          onEvent?.({ kind: "bug", company: m.company.id, text: tt("ev.fixed", { id: m.id, shop: m.company.name, m: Math.round(m.tFixed - m.t0) }), sub: m.title, at: new Date() });
+          notify({ kind: "bug", resolved: true, company: m.company.id, text: tt("ev.fixed", { id: m.id, shop: m.company.name, m: Math.round(m.tFixed - m.t0) }), sub: m.title, at: new Date() });
         }
       }
       amb.speed += (want - amb.speed) * Math.min(1, dt * 3);
@@ -1348,10 +1358,14 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const extras = buildExtras({
     world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
-    crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent,
+    crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent: notify, leadX: leadLot.x,
+    selectLead: () => select("lead", "lead", true),
+    selectHQ: () => select("hq", "loodos", true),
     laneBusy: () => amb.state !== "idle",   // ambulans ve itfaiye aynı orta şeridi kullanır, sırayla çıkar
     selectCompany: id => select("company", id, true),
   });
+
+  extrasRef = extras;
 
   /* ---------- Instanced parçaları oluştur ---------- */
   scene.updateMatrixWorld(true);
@@ -1449,6 +1463,11 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       selRing.visible = true;
       const zoom = zoomFor(.95, 1.6);
       flyTo(framed(groundOf(new THREE.Vector3(hqX, 13, -12)), zoom), zoom);
+    } else if (kind === "lead") {
+      selRing.position.set(leadLot.x, .12, -LOT_Z);
+      selRing.visible = true;
+      const zoom = zoomFor(1.4, 2.2);
+      flyTo(framed(groundOf(new THREE.Vector3(leadLot.x, 5, -LOT_Z * .8)), zoom), zoom);
     } else if (kind === "ambulance") {
       const zoom = zoomFor(2, 3);
       if (amb.mesh.visible) { flyTo(framed(amb.mesh.position.clone().setY(0), zoom), zoom, 800); follow = amb; }
@@ -1710,7 +1729,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       if (v.state === "unloading") {
         v.timer -= dt;
         if (v.timer <= 0) {
-          onEvent?.({ kind: "delivery", vehicle: v.id, company: v.dest.c.id, text: tt("ev.delivered", { id: v.id, shop: v.dest.c.name, p: v.prod?.name || "" }), sub: v.cargo, at: new Date() });
+          notify({ kind: "delivery", vehicle: v.id, company: v.dest.c.id, text: tt("ev.delivered", { id: v.id, shop: v.dest.c.name, p: v.prod?.name || "" }), sub: v.cargo, at: new Date() });
           v.state = "driving";
           newDest(v);
         }
@@ -1775,6 +1794,12 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     districts, vehicles, hqX,
     select, highlight, focusSector, home, setNight, setWeather, setClock,
     setEvent: (kind, info) => extras.setEvent(kind, info),
+    // Ziyaretçinin seçtiği ürünler: parsel o ürünlerin müşterisi olur, bina kat kat yükselir, boştaki kamyonlar yola çıkar
+    setLead(ids) {
+      leadLot.c.projects[0].prods = ids.map(id => ({ id }));
+      extras.setLead(ids.length);
+      vehicles.filter(v => v.delivers && !v.dest).forEach(v => newDest(v, true));
+    },
     clearSelection() { select(null); highlight(null); },
     zoomBy(f) { follow = null; flyTo(controls.target.clone(), THREE.MathUtils.clamp(camera.zoom * f, controls.minZoom, controls.maxZoom), 350); },
     rotateBy(a) {

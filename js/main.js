@@ -43,7 +43,7 @@ const ICON = {
 };
 
 // Sahne kurulamazsa (WebGL yok, GPU kara listede) arayüz bu boş sahneyle liste görünümünde çalışır.
-const NO_STREET = { select() {}, highlight() {}, focusSector() {}, home() {}, zoomBy() {}, rotateBy() {}, intro() {}, setNight() {}, setWeather() {}, setClock() {}, setEvent() {}, vehicleInfo: () => null, ambulanceInfo: () => null };
+const NO_STREET = { select() {}, highlight() {}, focusSector() {}, home() {}, zoomBy() {}, rotateBy() {}, intro() {}, setNight() {}, setWeather() {}, setClock() {}, setEvent() {}, setLead() {}, vehicleInfo: () => null, ambulanceInfo: () => null };
 const siren = createSiren(prefs.get("ls.sound") !== "off");
 let street = NO_STREET;
 let ctx = { kind: "all" };        // KPI ve panel bağlamı
@@ -266,6 +266,44 @@ function showAmbulance() {
   vehicleTimer = setInterval(() => { if (ctx.kind === "ambulance") draw(); else clearInterval(vehicleTimer); }, 400);
 }
 
+/* ---------- "Bu dükkân sizin olabilir" ---------- */
+// Ziyaretçinin seçimi yalnız kendi tarayıcısında saklanır; bina ve kamyonlar bu seçime göre davranır.
+let lead = (() => { try { const v = JSON.parse(prefs.get("ls.lead") || "{}"); return { sector: v.sector || null, prods: Array.isArray(v.prods) ? v.prods.filter(productById) : [] }; } catch { return { sector: null, prods: [] }; } })();
+function saveLead() {
+  prefs.set("ls.lead", JSON.stringify(lead));
+  street.setLead(lead.prods);
+}
+function showLead() {
+  ctx = { kind: "lead" };
+  setJourneyFor(null);
+  setHash("yeni-dukkan");
+  const refs = [...new Set([
+    ...D.companies.filter(c => c.sector === lead.sector).map(c => c.id),
+    ...lead.prods.flatMap(usersOf),
+  ])].map(byCompany).slice(0, 8);
+  const keep = panel.querySelector(".p-body")?.scrollTop || 0;
+  const html = `${head('<span class="p-logo txt" style="--c:var(--teal)">＋</span>', esc(t("lead.kicker")), esc(t("lead.title")), esc(t("lead.sub")))}
+    <div class="p-body">
+      <div class="sec"><h3>${t("lead.sector")}</h3><div class="choice">${D.sectors.map(s => `<button data-sec="${s.id}" class="${lead.sector === s.id ? "on" : ""}" style="--c:${s.color}"><i></i>${esc(s.name)}</button>`).join("")}</div></div>
+      <div class="sec"><h3>${t("lead.products")}</h3><div class="choice">${D.products.map(p => `<button data-lp="${p.id}" class="${lead.prods.includes(p.id) ? "on" : ""}" title="${esc(p.cat)}"><span class="mono">${esc(p.mono)}</span>${esc(p.name)}</button>`).join("")}</div></div>
+      ${lead.prods.length ? `<p class="custom" style="margin-top:12px">${esc(t("lead.trucks", { n: lead.prods.length, f: Math.min(10, lead.prods.length + 1) }))}</p>` : ""}
+      ${refs.length ? `<div class="sec"><h3>${t("lead.refs")}</h3><div class="prod-list">${refs.map(c => `<button data-goto="${c.id}">${logoBox(c, bySector(c.sector))}<span><b>${esc(c.name)}</b><small>${c.projects.map(p => esc(p.app || p.sub)).join(" · ")}</small></span></button>`).join("")}</div></div>` : ""}
+      <a class="cta" href="https://loodos.com/contact" target="_blank" rel="noopener">${esc(t("lead.cta"))} ${ICON.ext}</a>${lead.sector || lead.prods.length ? `<button class="cta ghost" data-lead-reset>${esc(t("lead.reset"))}</button>` : ""}
+    </div>`;
+  if (panel.hidden || panel.dataset.v !== "lead") { openPanel(html); panel.dataset.v = "lead"; }
+  else { panel.innerHTML = html; panel.querySelector(".p-body").scrollTop = keep; }
+  panel.querySelectorAll(".prod-list .p-logo").forEach(l => { l.style.width = "40px"; l.style.height = "40px"; l.style.borderRadius = "11px"; });
+  panel.querySelectorAll("[data-sec]").forEach(b => b.addEventListener("click", () => { lead.sector = lead.sector === b.dataset.sec ? null : b.dataset.sec; saveLead(); showLead(); }));
+  panel.querySelectorAll("[data-lp]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.lp;
+    lead.prods = lead.prods.includes(id) ? lead.prods.filter(x => x !== id) : [...lead.prods, id];
+    saveLead(); showLead();
+  }));
+  panel.querySelector("[data-lead-reset]")?.addEventListener("click", () => { lead = { sector: null, prods: [] }; saveLead(); showLead(); });
+  panel.querySelectorAll("[data-goto]").forEach(b => b.addEventListener("click", () => openCompany(b.dataset.goto)));
+  renderKpis();
+}
+
 function showHQ() {
   ctx = { kind: "all" };
   setJourneyFor(null);
@@ -368,6 +406,7 @@ function chooseResult(i) {
 
 /* ---------- Geçişler ---------- */
 function openCompany(id, tab = 0) {
+  if (id === "lead") { street.select("lead", "lead"); return showLead(); }
   activeProduct = null;
   street.highlight(null);
   street.select("company", id);
@@ -666,6 +705,7 @@ async function boot() {
         if (sel.kind === "company") { showCompany(sel.id); setDistrictButton(byCompany(sel.id).sector); }
         else if (sel.kind === "vehicle") showVehicle(sel.id);
         else if (sel.kind === "ambulance") showAmbulance();
+        else if (sel.kind === "lead") showLead();
         else if (sel.kind === "hq") showHQ();
         else if (sel.kind === "sector") showSector(sel.id);
       },
@@ -679,6 +719,7 @@ async function boot() {
   }
   applyEvent();
   street.setClock(simHours());
+  street.setLead(lead.prods);
   finishBoot(true);
 }
 
@@ -765,6 +806,7 @@ function wireUi() {
       if (ctx.kind === "company") street.select("company", ctx.id);
       else if (ctx.kind === "vehicle") street.select("vehicle", ctx.id);
       else if (ctx.kind === "ambulance") street.select("ambulance", "hotfix");
+      else if (ctx.kind === "lead") street.select("lead", "lead");
       else if (ctx.kind === "sector") street.focusSector(ctx.id);
       else street.select("hq", "loodos");
     }
@@ -775,6 +817,7 @@ function finishBoot(is3d) {
   $("#loader").classList.add("done");
   const h = decodeURIComponent(location.hash.slice(1));
   if (h === "sunum" || h === "present") startPresentation();
+  else if (h === "yeni-dukkan" && is3d) { street.select("lead", "lead"); showLead(); }
   else if (byCompany(h)) openCompany(h);
   else if (h.startsWith("mahalle/") && bySector(h.slice(8))) focusSector(h.slice(8));
   else if (h === "merkez") { street.select("hq", "loodos"); showHQ(); }
