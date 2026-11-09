@@ -10,7 +10,7 @@ const THEME = document.querySelector('meta[name="street-theme"]')?.content || ne
 // Web Summit 2026 (yalnız /portugal/). meetUrl: "gelin tanışalım" linki; boşken buton gizlenir.
 const SUMMIT = { meetUrl: "", catalogUrl: "https://playground.loodos.com/" };
 // A Portuguesa: ABD Donanma Bandosu kaydı (kamu malı, Wikimedia Commons). Ses açıksa ilk dokunuşta bir kez çalar.
-const anthem = THEME === "pt" ? Object.assign(new Audio("assets/audio/a-portuguesa.m4a"), { volume: .35, preload: "none" }) : null;
+const anthem = THEME === "pt" ? Object.assign(new Audio("assets/audio/a-portuguesa.m4a"), { volume: .15, preload: "none" }) : null;
 let anthemPlayed = false;
 function playAnthem() { if (anthem && siren.enabled) { anthem.currentTime = 0; anthem.play().catch(() => {}); anthemPlayed = true; } }
 const THEME_INFO = { pt: { big: "Olá, Portugal!", line: "Bem-vindos à Loodos Street", small: "Loodos 🇹🇷 ❤ 🇵🇹" } }[THEME] || null;
