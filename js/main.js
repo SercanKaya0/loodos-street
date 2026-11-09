@@ -5,6 +5,9 @@ import { t, lang, setLang, localData, locale, prefs, translateDom } from "./i18n
 import { createSiren } from "./siren.js";
 
 const D = localData();
+// Tema sayfası: /portugal/ (tools/pages.py üretir) ya da yerelde ?theme=pt
+const THEME = document.querySelector('meta[name="street-theme"]')?.content || new URLSearchParams(location.search).get("theme") || "";
+const THEME_INFO = { pt: { big: "Olá, Portugal!", line: "Bem-vindos à Loodos Street", small: "Loodos 🇹🇷 ❤ 🇵🇹" } }[THEME] || null;
 const $ = s => document.querySelector(s);
 const app = $("#app");
 const bySector = id => D.sectors.find(s => s.id === id);
@@ -16,7 +19,8 @@ const usersOf = pid => D.companies.filter(c => c.projects.some(p => p.prods.some
 const productsOf = c => [...new Set(c.projects.flatMap(p => p.prods.map(x => x.id)))];
 const driveUrl = id => `https://drive.google.com/file/d/${id}/view`;
 // Paylaşılabilir adres: #a101, #mahalle/ret, #merkez, #sunum. Sunum sürerken adres #sunum'da kalır.
-const setHash = h => { if (!presenter.on) history.replaceState(null, "", h ? "#" + h : location.pathname + location.search); };
+// Tam yol kullanılır: /portugal/ gibi <base href="../"> olan sayfalarda "#..." kök dizine göre çözülürdü
+const setHash = h => { if (!presenter.on) history.replaceState(null, "", location.pathname + location.search + (h ? "#" + h : "")); };
 
 const ICON = {
   users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg>',
@@ -604,7 +608,7 @@ function placePresenter() {
 function startPresentation() {
   closeMenus();
   Object.assign(presenter, { on: true, paused: false, items: slides() });
-  history.replaceState(null, "", "#sunum");
+  history.replaceState(null, "", location.pathname + location.search + "#sunum");
   app.classList.add("presenting");
   $("#presenter").hidden = false;
   $("#presenter").classList.remove("paused");
@@ -732,6 +736,8 @@ async function boot() {
       data: D,
       night: nightNow(),
       weather: weatherNow(),
+      theme: THEME,
+      themeInfo: THEME_INFO,
       siren,
       onSelect(sel) {
         closeMenus();

@@ -22,6 +22,7 @@ Loodos'un müşteri projelerini izometrik bir sokakta gezdiren etkileşimli hari
 - Hava: tema menüsünden Mevsime göre / Açık / Yağmur / Kar. Mevsim modu her ay için yağmur ve kar olasılığını kullanır; hava 3 saatlik dilimlerle değişir. Kar yağdıkça çatılar ve ağaçlar beyazlar, sağanakta şimşek çakar.
 - Bug ambulansı: ara sıra kısık sirenle bir dükkâna gider; ekip kaldırıma masa kurup MacBook açar, tepelerinde terminalde hotfix komutları akar, sonra toplanıp ayrılır; panelde görev adımları ve oturumluk bug hesabı (1 sn = 1 dk). Siren sağdaki hoparlör düğmesiyle kapatılır.
 - Sahne: Three.js r160 (`vendor/three`, CDN'siz). WebGL yoksa liste görünümüne düşer.
+- Portekiz sayfası (`/portugal/`): azulejo çinili dükkânlar, calçada portuguesa kaldırımlar, sarı Lizbon tramvayları, Portekiz bayrakları ve süsleri, Barcelos horozu, "Olá, Portugal!" billboard'u. Sayfa `index.html`'den üretilir; `index.html` değişince `python3 -I tools/pages.py` çalıştırılmalı (yerelde `?theme=pt` ile de denenebilir).
 - Paylaşılabilir linkler: `#a101`, `#mahalle/fnb`, `#merkez`, `#sunum`.
 
 Veriyi yenilemek için katalog JSON'larını (`solutions.json`, `company.json`, `products.json`) bir klasöre indirip:

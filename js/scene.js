@@ -43,7 +43,8 @@ function glowTexture(stretch = 1) {
   return tex;
 }
 
-export async function createStreet({ el, data, night: initialNight = 0, weather: initialWeather = "clear", siren, onSelect, onEvent }) {
+export async function createStreet({ el, data, night: initialNight = 0, weather: initialWeather = "clear", theme = "", themeInfo = null, siren, onSelect, onEvent }) {
+  const PT = theme === "pt";   // /portugal/ sayfası: azulejo duvarlar, calçada kaldırımlar, sarı tramvaylar (js/extras.js bayrak ve süsleri ekler)
   /* ---------- Renderer, kamera, kontroller ---------- */
   // Dokunmatik/dar ekranda GPU belleğini koru: düşük piksel oranı, küçük gölge haritası, daha az yaya
   const LITE = matchMedia("(pointer: coarse)").matches || innerWidth < 860;
@@ -181,6 +182,44 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     }
   }
 
+  /* ---------- Portekiz dokuları (yalnız /portugal/) ---------- */
+  function patternTexture(draw, size = 256) {
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = size;
+    draw(cv.getContext("2d"), size);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  }
+  // Azulejo: beyaz zeminde kobalt mavisi çiçek motifli çini (2x2 karo)
+  const azulejo = PT && patternTexture((c, n) => {
+    c.fillStyle = "#f4f6fb"; c.fillRect(0, 0, n, n);
+    const t = n / 2;
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+      const x = i * t, y = j * t, cx = x + t / 2, cy = y + t / 2;
+      c.strokeStyle = "#1f4e9c"; c.fillStyle = "#1f4e9c"; c.lineWidth = 5;
+      c.strokeRect(x + 2.5, y + 2.5, t - 5, t - 5);
+      for (const [qx, qy] of [[x, y], [x + t, y], [x, y + t], [x + t, y + t]]) { c.beginPath(); c.arc(qx, qy, t * .28, 0, Math.PI * 2); c.stroke(); }
+      for (let k = 0; k < 4; k++) {
+        const a = k * Math.PI / 2;
+        c.beginPath(); c.ellipse(cx + Math.cos(a) * t * .17, cy + Math.sin(a) * t * .17, t * .13, t * .06, a, 0, Math.PI * 2); c.fill();
+      }
+      c.beginPath(); c.arc(cx, cy, t * .07, 0, Math.PI * 2); c.fillStyle = "#e9b949"; c.fill();
+    }
+  });
+  // Calçada portuguesa: krem zeminde siyah dalga şeritleri
+  const calcada = PT && patternTexture((c, n) => {
+    c.fillStyle = "#efe9dc"; c.fillRect(0, 0, n, n);
+    c.strokeStyle = "#22262a"; c.lineWidth = n * .09;
+    for (const off of [.25, .75]) {
+      c.beginPath();
+      for (let x = 0; x <= n; x += 4) c.lineTo(x, n * off + Math.sin(x / n * Math.PI * 2) * n * .14);
+      c.stroke();
+    }
+  });
+
   /* ---------- Logo ve tabela dokuları ---------- */
   await document.fonts.ready;
   const images = new Map();
@@ -299,6 +338,12 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   for (const [a, b] of walkSegments) {
     for (const side of [-1, 1]) {
       box(world, b - a, .18, 3.6, M.walk, (a + b) / 2, 0, side * 6.3, false);
+      if (PT) {   // kaldırımın üstüne kendi tekrar oranıyla calçada döşenir
+        const tex = calcada.clone();
+        tex.needsUpdate = true;
+        tex.repeat.set((b - a) / 5, 3.6 / 5);
+        plane(world, b - a, 3.6, new THREE.MeshStandardMaterial({ map: tex, roughness: .9 }), (a + b) / 2, .185, side * 6.3);
+      }
       box(world, b - a, .22, .3, M.curb, (a + b) / 2, 0, side * 4.55, false);
     }
   }
@@ -360,6 +405,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     const { c, s } = lot;
     const g = new THREE.Group();
     const wallMat = M.wall.clone();
+    if (PT) { wallMat.map = azulejo; wallMat.color.set(0xffffff); }
     const acc = accentMat(s.color);
     const tex = signTexture(c, s.color);
     const type = TYPE[s.id];
@@ -934,7 +980,10 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
 
   // İki tren aynı yönde, halkanın iki yarısında; ikisi de istasyonda durur, aradaki mesafe korunur.
   const trains = [];
-  const locoTex = wordTexture("loodos", { bg: "#1ab0ba", color: "#ffffff", sub: "EXPRESS", h: 200 });
+  // Portekiz sayfasında trenler Lizbon'un sarı 28 tramvayına döner
+  const locoTex = PT ? wordTexture("28  Loodos", { bg: "#f2c200", color: "#1b1b1b", sub: "LISBOA · ELÉCTRICO", h: 200 })
+    : wordTexture("loodos", { bg: "#1ab0ba", color: "#ffffff", sub: "EXPRESS", h: 200 });
+  const TR = PT ? { body: mat(0xf2c200, { roughness: .45 }), band: mat(0xf7f3e8, { roughness: .6 }) } : { body: M.teal, band: M.teal };
   const locoSide = new THREE.MeshStandardMaterial({ map: locoTex, roughness: .6, emissive: 0xffffff, emissiveMap: locoTex, emissiveIntensity: 0 });
   signMats.push(locoSide);
   function makeTrain(startS) {
@@ -944,8 +993,8 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       const g = new THREE.Group();
       for (const x of [-L / 2 + 1.3, L / 2 - 1.3]) box(g, 1.6, .45, 1.9, M.ink, x, .38, 0);
       if (i === 0) {
-        box(g, L - 1.6, 2.2, 2.3, M.teal, -.8, .8, 0);
-        const side = new THREE.Mesh(BOX, [M.teal, M.teal, M.teal, M.teal, locoSide, locoSide]);
+        box(g, L - 1.6, 2.2, 2.3, TR.body, -.8, .8, 0);
+        const side = new THREE.Mesh(BOX, [TR.body, TR.body, TR.body, TR.body, locoSide, locoSide]);
         side.scale.set(3.6, 1.1, 2.34); side.position.set(-1.4, 1.95, 0);
         g.add(side);
         box(g, 1.6, 1.6, 2.3, M.white, L / 2 - .8, .8, 0);
@@ -953,8 +1002,8 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
         box(g, L - .4, .25, 2.1, M.ink, 0, 3, 0);
         for (const z of [-.7, .7]) box(g, .08, .22, .34, headMat, L / 2 + .02, 1.05, z, false);
       } else {
-        box(g, L, 2.2, 2.3, M.white, 0, .8, 0);
-        box(g, L + .02, .32, 2.34, M.teal, 0, 1.25, 0);
+        box(g, L, 2.2, 2.3, PT ? TR.body : M.white, 0, .8, 0);
+        box(g, L + .02, .32, 2.34, PT ? TR.band : M.teal, 0, 1.25, 0);
         box(g, L - .9, .55, 2.34, M.glass, 0, 1.9, 0);
         box(g, L - .2, .22, 2.1, M.roof, 0, 3, 0);
       }
@@ -1358,7 +1407,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const extras = buildExtras({
     world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
-    crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent: notify, leadX: leadLot.x,
+    crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent: notify, leadX: leadLot.x, theme, themeInfo,
     selectLead: () => select("lead", "lead", true),
     selectHQ: () => select("hq", "loodos", true),
     laneBusy: () => amb.state !== "idle",   // ambulans ve itfaiye aynı orta şeridi kullanır, sırayla çıkar

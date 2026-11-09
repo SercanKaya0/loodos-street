@@ -10,7 +10,8 @@ const clamp01 = x => Math.min(1, Math.max(0, x));
 export function buildExtras(k) {
   const { world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagTex, crowns, data,
-    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany, selectLead, selectHQ, leadX } = k;
+    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany, selectLead, selectHQ, leadX, theme, themeInfo } = k;
+  const PT = theme === "pt";   // /portugal/ sayfası
   const anim = [];            // her karede (dt, t) ile çağrılır
   const nightFx = [];         // applyNight'ta (lit) ile çağrılır
   const flatGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -721,43 +722,110 @@ export function buildExtras(k) {
   }
   let holiday = null;   // dijital panolar da her ikinci mesajda bunu gösterir
   function drawDress(kind, info) {
-    const national = kind === "national";
-    const bg = national ? "#e30a17" : "#0c1a3a", accent = national ? "#ffffff" : "#ffd36b";
+    const national = kind === "national", pt = kind === "pt";
+    const bg = national ? "#e30a17" : pt ? "#046a38" : "#0c1a3a", accent = national ? "#ffffff" : pt ? "#ffe900" : "#ffd36b";
     let c = boardCv.getContext("2d");
     c.fillStyle = bg; c.fillRect(0, 0, 1024, 384);
+    if (pt) { c.fillStyle = "#da291c"; c.fillRect(300, 0, 724, 384); }
     c.fillStyle = accent; c.globalAlpha = .9; c.fillRect(0, 352, 1024, 32); c.globalAlpha = 1;
     if (national) drawCrescent(c, 150, 176, 104, bg);
+    else if (pt) drawPtEmblem(c, 300, 176, 96);
     else { c.fillStyle = "#ffd36b"; for (let i = 0; i < 40; i++) { c.globalAlpha = Math.random() * .8 + .2; c.fillRect(Math.random() * 1024, Math.random() * 340, 4, 4); } c.globalAlpha = 1; }
-    const left = national ? 330 : 60, w = 1024 - left - 50;
+    const left = national ? 330 : pt ? 420 : 60, w = 1024 - left - 50;
     c.fillStyle = accent; c.textBaseline = "alphabetic"; c.textAlign = "left";
     fitText(c, info.big, 800, 120, w); c.fillText(info.big, left, 150);
     c.fillStyle = "#ffffff";
     fitText(c, info.line, 700, 52, w); c.fillText(info.line, left, 228);
     fitText(c, info.small, 600, 36, w); c.globalAlpha = .85; c.fillText(info.small, left, 290); c.globalAlpha = 1;
-    c.font = `700 30px "Red Hat Display"`; c.textAlign = "right"; c.fillStyle = national ? "#e30a17" : "#0c1a3a"; c.fillText("loodos", 1000, 378);
+    c.font = `700 30px "Red Hat Display"`; c.textAlign = "right"; c.fillStyle = national ? "#e30a17" : pt ? "#046a38" : "#0c1a3a"; c.fillText("loodos", 1000, 378);
     boardTex.needsUpdate = true;
     c = bandCv.getContext("2d");
     c.fillStyle = bg; c.fillRect(0, 0, 1024, 128);
     c.fillStyle = "#ffffff"; c.textAlign = "center"; c.textBaseline = "middle";
-    const txt = `${info.big} · ${info.small}`.toLocaleUpperCase(document.documentElement.lang === "en" ? "en" : "tr");
+    const txt = `${info.big} · ${info.small}`.toLocaleUpperCase(pt ? "pt" : document.documentElement.lang === "en" ? "en" : "tr");
     fitText(c, txt, 800, 84, 980); c.fillText(txt, 512, 68);
     bandTex.needsUpdate = true;
     holiday = { big: info.big, small: info.line };
   }
 
+  // Portekiz bayrağı: 2/5 yeşil, 3/5 kırmızı, sınırda sarı küre ve kalkan
+  function drawPtEmblem(c, cx, cy, r) {
+    c.strokeStyle = "#ffe900"; c.lineWidth = r * .14;
+    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.stroke();
+    c.lineWidth = r * .06;
+    c.beginPath(); c.ellipse(cx, cy, r, r * .35, 0, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.ellipse(cx, cy, r * .35, r, 0, 0, Math.PI * 2); c.stroke();
+    const w = r * .9, h = r * 1.05, x = cx - w / 2, y = cy - h / 2;
+    c.fillStyle = "#da291c";
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x + w, y); c.lineTo(x + w, y + h * .6); c.quadraticCurveTo(x + w, y + h, cx, y + h); c.quadraticCurveTo(x, y + h, x, y + h * .6); c.closePath(); c.fill();
+    const iw = w * .62, ih = h * .66, ix = cx - iw / 2, iy = cy - ih / 2 + h * .02;
+    c.fillStyle = "#ffffff";
+    c.beginPath(); c.moveTo(ix, iy); c.lineTo(ix + iw, iy); c.lineTo(ix + iw, iy + ih * .6); c.quadraticCurveTo(ix + iw, iy + ih, cx, iy + ih); c.quadraticCurveTo(ix, iy + ih, ix, iy + ih * .6); c.closePath(); c.fill();
+    c.fillStyle = "#003da5";
+    for (const [dx, dy] of [[0, -.27], [-.24, 0], [0, 0], [.24, 0], [0, .27]]) { c.beginPath(); c.arc(cx + dx * iw, cy + dy * ih, iw * .1, 0, Math.PI * 2); c.fill(); }
+  }
+  const ptFlagTex = (() => {
+    const cv = document.createElement("canvas");
+    cv.width = 320; cv.height = 190;
+    const c = cv.getContext("2d");
+    c.fillStyle = "#046a38"; c.fillRect(0, 0, 128, 190);
+    c.fillStyle = "#da291c"; c.fillRect(128, 0, 192, 190);
+    drawPtEmblem(c, 128, 95, 48);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  })();
+  DRESS_COLORS.pt = [0x046a38, 0xda291c, 0xffe900];
+
+  // Barcelos horozu: Portekiz sayfasında meydanda, kaidesinin üstünde
+  if (PT) {
+    const g = new THREE.Group();
+    g.position.set(plazaPos.x - 7.2, 0, plazaPos.z + 1.2);
+    world.add(g);
+    box(g, 1.6, 1.2, 1.6, M.white, 0, 0, 0);
+    box(g, 1.66, .12, 1.66, mat(0x1f4e9c), 0, 1.2, 0, false);
+    const black = mat(0x15191d, { roughness: .45 }), red = mat(0xda291c, { roughness: .5 }), yellow = mat(0xffd23a, { roughness: .5 });
+    const rooster = new THREE.Group();
+    rooster.position.y = 1.32;
+    rooster.scale.setScalar(1.15);
+    g.add(rooster);
+    for (const z of [-.18, .18]) cyl(rooster, .05, .05, .5, yellow, 0, 0, z, 6);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.55, 16, 12), black);
+    body.scale.set(1.15, .85, .75); body.position.set(0, .85, 0); body.castShadow = true; rooster.add(body);
+    const neck = new THREE.Mesh(new THREE.SphereGeometry(.28, 12, 10), black);
+    neck.position.set(.48, 1.32, 0); rooster.add(neck);
+    for (const [dx, h] of [[.36, .22], [.48, .3], [.6, .22]]) box(rooster, .12, h, .08, red, dx, 1.55, 0, false);   // ibik
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(.08, .22, 8), yellow);
+    beak.rotation.z = -Math.PI / 2; beak.position.set(.8, 1.3, 0); rooster.add(beak);
+    box(rooster, .1, .18, .08, red, .66, 1.08, 0, false);   // gerdan
+    [0xda291c, 0xffd23a, 0x046a38, 0x1f4e9c, 0xda291c].forEach((col, i) => {   // renkli kuyruk tüyleri
+      const f = box(rooster, .12, .9, .3, mat(col, { roughness: .5 }), -.62, .7, 0, false);
+      f.rotation.z = .35 + i * .18;
+    });
+    [[.1, .95, .42], [-.15, .7, .42], [.25, .65, .4], [.1, .95, -.42], [-.15, .7, -.42]].forEach(([x, y, z], i) => {   // kalp desenleri
+      const d = new THREE.Mesh(new THREE.SphereGeometry(.08, 8, 6), [red, yellow][i % 2]);
+      d.position.set(x, y, z); rooster.add(d);
+    });
+    anim.push((dt, t) => { rooster.rotation.y = Math.sin(t * .4) * .5; });
+  }
+
   let event = "none";
   function setEvent(kind, info) {
+    // Portekiz sayfasında süsleme her zaman Portekiz'e özel (yılbaşı ışıkları yine yanar)
+    if (PT && kind !== "newyear") { kind = "pt"; info = themeInfo; }
     event = kind;
-    const national = kind === "national", newyear = kind === "newyear";
-    flagMat.map = flagMat.emissiveMap = national ? trFlagTex : flagTex;
-    hqFlag.visible = national;
+    const national = kind === "national", newyear = kind === "newyear", pt = kind === "pt";
+    const flagTexNow = PT ? ptFlagTex : national ? trFlagTex : flagTex;
+    flagMat.map = flagMat.emissiveMap = flagTexNow;
+    hqFlag.material.map = hqFlag.material.emissiveMap = sideFlagMat.map = PT ? ptFlagTex : trFlagTex;
+    hqFlag.visible = national || pt;
     treeLights.visible = newyear;
     xmas.visible = newyear;
     for (const f of fountain) f.visible = !newyear;
     // Giydirme
-    const dressed = (national || newyear) && !!info;
+    const dressed = (national || newyear || pt) && !!info;
     dress.visible = board.visible = hqDress.visible = dressed;
-    for (const o of hqDress.children) if (o !== band) o.visible = national;
+    for (const o of hqDress.children) if (o !== band) o.visible = national || pt;
     if (dressed) { paintPennants(kind); drawDress(kind, info); } else holiday = null;
   }
 

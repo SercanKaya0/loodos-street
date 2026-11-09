@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <base href="../">
+  <meta name="street-theme" content="pt">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Loodos Street · Portugal</title>
+  <meta name="description" content="Loodos'un müşteri projelerini izometrik bir sokakta gezdiren etkileşimli harita.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700;800&family=Red+Hat+Text:wght@400;500;600&family=Red+Hat+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* İlk boyamadan önce tema: ışık patlaması olmasın. Ayrıntılı hesap js/main.js'te (nightAt). */
+    try { var m = localStorage.getItem("ls.theme") || "auto", d = new Date(), h = d.getHours() + d.getMinutes() / 60;
+      document.documentElement.dataset.theme = m === "dark" || (m !== "light" && (h < 6.5 || h >= 19)) ? "dark" : "light"; } catch (e) {}
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app" class="app">
+    <div id="stage" class="stage" data-i18n-aria="stage.aria"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#" data-action="home" data-i18n-aria="brand.aria">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M16 2 29 9.5v13L16 30 3 22.5v-13z" fill="var(--teal)"/><path d="M16 2 29 9.5 16 17 3 9.5z" fill="#4fd0d8"/><path d="M16 17v13L3 22.5v-13z" fill="var(--teal-ink)"/></svg>
+        </span>
+        <span class="brand-name">loodos<b>Street</b></span>
+      </a>
+
+      <div class="search" role="search">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" autocomplete="off" data-i18n-ph="search.ph" data-i18n-aria="search.aria">
+        <kbd>/</kbd>
+        <div id="results" class="results" role="listbox" hidden></div>
+      </div>
+
+      <div class="district">
+        <button id="districtBtn" class="district-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span id="districtChip" class="chip-sq">ALL</span>
+          <span class="district-txt"><b id="districtName"></b><small id="districtSub"></small></span>
+          <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="districtMenu" class="menu district-menu" role="listbox" hidden></div>
+      </div>
+
+      <div class="live" data-i18n-title="live.title"><i></i><span data-i18n="live"></span> <time id="clock">--:--</time><span id="wx" class="wx"></span></div>
+
+      <button id="walkBtn" class="walk-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="m9 21 2-6 3 3v3M7 12l3-4 4 1 3 3M10 8l-1 5"/></svg><span data-i18n="walk.btn"></span></button>
+
+      <button id="langBtn" class="icon-btn lang-btn" data-i18n="lang.btn" data-i18n-aria="lang.aria"></button>
+
+      <div class="theme-wrap">
+        <button id="themeBtn" class="icon-btn" data-i18n-aria="theme" aria-haspopup="true" aria-expanded="false">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+        </button>
+        <div id="themeMenu" class="menu theme-menu" role="menu" hidden></div>
+      </div>
+
+      <div class="bell-wrap">
+        <button id="bell" class="icon-btn" data-i18n-aria="feed" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+          <span id="bellDot" class="dot" hidden></span>
+        </button>
+        <div id="feed" class="menu feed" hidden></div>
+      </div>
+
+      <div class="me">
+        <span class="avatar" aria-hidden="true">LM</span>
+        <span class="me-txt"><b>Loodos Marcom</b><small>Playground · experimental</small></span>
+      </div>
+    </header>
+
+    <section id="kpis" class="kpis" aria-live="polite"></section>
+
+    <aside id="panel" class="panel" hidden aria-live="polite"></aside>
+
+    <div class="mapctl" role="toolbar" aria-label="Harita kontrolleri">
+      <button class="icon-btn" data-action="zoom-in" data-i18n-aria="zoom.in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="icon-btn" data-action="zoom-out" data-i18n-aria="zoom.out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <span class="sep"></span>
+      <button class="icon-btn" data-action="rotate-l" data-i18n-aria="rot.l"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg></button>
+      <button class="icon-btn" data-action="rotate-r" data-i18n-aria="rot.r"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4h-4"/></svg></button>
+      <span class="sep"></span>
+      <button class="icon-btn" data-action="home" data-i18n-aria="home"><svg viewBox="0 0 24 24"><path d="m4 11 8-7 8 7"/><path d="M6 10v10h12V10"/></svg></button>
+      <span class="sep"></span>
+      <button class="icon-btn labels-btn" data-action="labels"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg></button>
+      <button class="icon-btn sound-btn" data-action="sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="mute" d="m16 9 5 6M21 9l-5 6"/></svg></button>
+      <button class="icon-btn present-btn" data-action="present" data-i18n-aria="pr.start" data-i18n-title="pr.start"><svg viewBox="0 0 24 24"><path d="M3 4h18v12H3z"/><path d="m10 7.5 4.5 2.5-4.5 2.5z"/><path d="M12 16v4M8 20h8"/></svg></button>
+    </div>
+
+    <footer class="journey">
+      <div class="journey-head">
+        <b data-i18n="journey"></b>
+        <small id="journeySub"></small>
+      </div>
+      <ol id="journey" class="journey-track"></ol>
+    </footer>
+
+    <p class="hint" data-i18n="hint"></p>
+
+    <div id="walkHud" class="walk-hud" hidden>
+      <span class="me-dot"></span><span id="walkHudText"></span>
+      <button class="cta ghost" id="walkExit" data-i18n="walk.exit"></button>
+    </div>
+    <div id="dpad" class="dpad" hidden>
+      <button data-k="w" aria-label="↑">▲</button><button data-k="a" aria-label="←">◀</button><button data-k="s" aria-label="↓">▼</button><button data-k="d" aria-label="→">▶</button>
+    </div>
+    <div id="walkModal" class="modal" hidden>
+      <form class="modal-card" id="walkForm">
+        <h2 data-i18n="walk.title"></h2>
+        <label for="walkName" data-i18n="walk.ask"></label>
+        <input id="walkName" maxlength="20" autocomplete="nickname" data-i18n-ph="walk.ph">
+        <p data-i18n="walk.help"></p>
+        <div class="modal-actions"><button type="button" class="cta ghost" id="walkCancel" data-i18n="walk.cancel"></button><button type="submit" class="cta" data-i18n="walk.go"></button></div>
+      </form>
+    </div>
+
+    <div id="presenter" class="presenter" role="region" hidden>
+      <div class="pr-info"><span class="pr-badge" data-i18n="pr.title"></span><b id="prTitle"></b><small id="prCount"></small></div>
+      <div class="pr-ctl">
+        <button class="icon-btn" data-pr="prev" data-i18n-aria="pr.prev"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
+        <button class="icon-btn" data-pr="toggle" id="prToggle"><svg class="i-pause" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg><svg class="i-play" viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg></button>
+        <button class="icon-btn" data-pr="next" data-i18n-aria="pr.next"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button class="icon-btn" data-pr="stop" data-i18n-aria="pr.stop"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <span class="pr-bar"><i id="prBar"></i></span>
+    </div>
+
+    <div id="loader" class="loader"><span class="brand-mark spin" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 2 29 9.5v13L16 30 3 22.5v-13z" fill="var(--teal)"/><path d="M16 2 29 9.5 16 17 3 9.5z" fill="#4fd0d8"/><path d="M16 17v13L3 22.5v-13z" fill="var(--teal-ink)"/></svg></span><span data-i18n="loading"></span></div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/data.en.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
