@@ -666,6 +666,8 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const lastD = districts[districts.length - 1];
   const leadLot = { c: { id: "lead", name: tt("lead.name"), projects: [{ prods: [] }] }, s: { id: "lead", name: tt("lead.kicker"), color: "#1ab0ba" }, x: lastD.x1 + 12, side: -1 };
   lots.push(leadLot);
+  // Web Summit sahnesi (yalnız /portugal/): sokağın doğu ucunda, kuzey tarafta, yola bakar
+  const summit = { x: leadLot.x + 19, z: -LOT_Z - 1 };
   // Olaylar etki kulesinin sayaçlarından geçip arayüze gider (extras sahne kurulduktan sonra bağlanır)
   let extrasRef = null;
   const notify = ev => { extrasRef?.note(ev); onEvent?.(ev); };
@@ -1407,7 +1409,8 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const extras = buildExtras({
     world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
-    crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent: notify, leadX: leadLot.x, theme, themeInfo,
+    crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent: notify, leadX: leadLot.x, theme, themeInfo, summit,
+    selectSummit: () => select("summit", "summit", true),
     selectLead: () => select("lead", "lead", true),
     selectHQ: () => select("hq", "loodos", true),
     laneBusy: () => amb.state !== "idle",   // ambulans ve itfaiye aynı orta şeridi kullanır, sırayla çıkar
@@ -1512,6 +1515,11 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       selRing.visible = true;
       const zoom = zoomFor(.95, 1.6);
       flyTo(framed(groundOf(new THREE.Vector3(hqX, 13, -12)), zoom), zoom);
+    } else if (kind === "summit") {
+      selRing.position.set(summit.x, .12, summit.z);
+      selRing.visible = true;
+      const zoom = zoomFor(1.5, 2.3);
+      flyTo(framed(groundOf(new THREE.Vector3(summit.x, 4, summit.z + 3)), zoom), zoom);
     } else if (kind === "lead") {
       selRing.position.set(leadLot.x, .12, -LOT_Z);
       selRing.visible = true;
@@ -1713,6 +1721,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     { kind: "hq", id: "loodos", name: "Loodos", x: hqX, z: -LOT_Z - 1, hx: 8.5, hz: 5.8 },
     { kind: "lead", id: "lead", name: tt("lead.name"), x: leadLot.x, z: -LOT_Z, hx: 5.5, hz: 5.6 },
     { kind: "loot", id: "loot", name: "Loodos LOOT", x: leadLot.x, z: LOT_Z, hx: 4.3, hz: 3.5 },
+    ...(PT ? [{ kind: "summit", id: "summit", name: "Web Summit 2026", x: summit.x, z: summit.z - 1.5, hx: 5, hz: 2.5 }] : []),
   ];
   const WALK_KEYS = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", "shift"];
   addEventListener("keydown", e => {

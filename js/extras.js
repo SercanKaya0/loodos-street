@@ -10,7 +10,7 @@ const clamp01 = x => Math.min(1, Math.max(0, x));
 export function buildExtras(k) {
   const { world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagTex, crowns, data,
-    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany, selectLead, selectHQ, leadX, theme, themeInfo } = k;
+    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany, selectLead, selectHQ, leadX, theme, themeInfo, summit, selectSummit } = k;
   const PT = theme === "pt";   // /portugal/ sayfası
   const anim = [];            // her karede (dt, t) ile çağrılır
   const nightFx = [];         // applyNight'ta (lit) ile çağrılır
@@ -809,6 +809,120 @@ export function buildExtras(k) {
     anim.push((dt, t) => { rooster.rotation.y = Math.sin(t * .4) * .5; });
   }
 
+  // Tüm binaların çatısında küçük, dalgalanan bayraklar (bayramda Türk, Portekiz sayfasında Portekiz bayrağı)
+  const roofFlagMat = new THREE.MeshStandardMaterial({ map: ptFlagTex, side: THREE.DoubleSide, roughness: .75 });
+  const roofFlags = new THREE.Group();
+  roofFlags.visible = false;
+  {
+    const geo = new THREE.PlaneGeometry(1.5, .9).translate(.75, 0, 0);
+    for (const [, c] of companies) {
+      const p = c.group.localToWorld(new THREE.Vector3(-3.6, c.roof, 2.8));   // ön köşe: tabelanın arkasında kalmaz
+      const g = new THREE.Group();
+      g.position.copy(p);
+      box(g, .06, 2.2, .06, M.ink, 0, 0, 0, false);
+      const f = new THREE.Mesh(geo, roofFlagMat);
+      f.position.y = 1.85;
+      g.add(f);
+      roofFlags.add(g);
+      anim.push((dt, t) => { f.rotation.y = Math.sin(t * 2.2 + p.x) * .3; });
+    }
+    world.add(roofFlags);
+  }
+
+  // Web Summit 2026 sahnesi (yalnız /portugal/): LED ekran, kürsüde konuşmacı Hulki, dinleyiciler, kahve standı
+  if (PT && summit) {
+    const g = new THREE.Group();
+    g.position.set(summit.x, 0, summit.z);
+    world.add(g);
+    plane(g, 16, 12, mat(0x2b3237, { roughness: 1 }), 0, .045, 0);
+    const truss = mat(0x9aa3a6, { roughness: .4, metalness: .5 });
+    box(g, 11, .9, 4.2, M.ink, 0, 0, -3);
+    for (const x of [-5.3, 5.3]) box(g, .3, 7, .3, truss, x, .9, -4.8);
+    box(g, 10.9, .35, .35, truss, 0, 7.9, -4.8);
+    const { ctx, tex } = canvasTex(1024, 512);
+    const grad = ctx.createLinearGradient(0, 0, 1024, 512);
+    grad.addColorStop(0, "#0b1d2a"); grad.addColorStop(1, "#14244a");
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, 1024, 512);
+    ctx.strokeStyle = "rgba(26,176,186,.35)"; ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i++) { ctx.beginPath(); ctx.arc(860, 120, 40 + i * 26, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#ffffff"; ctx.font = `800 124px "Red Hat Display"`; ctx.fillText("WEB SUMMIT", 60, 210);
+    ctx.fillStyle = "#1ab0ba"; ctx.font = `800 80px "Red Hat Display"`; ctx.fillText("2026 · LISBOA", 60, 310);
+    ctx.fillStyle = "#cfe9ee"; ctx.font = `600 44px "Red Hat Display"`; ctx.fillText(tt("summit.wall"), 60, 400);
+    ctx.fillStyle = "#1ab0ba"; ctx.font = `700 40px "Red Hat Display"`; ctx.fillText("loodos", 60, 470);
+    tex.needsUpdate = true;
+    const face = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: .9, roughness: .5 });
+    const wall = new THREE.Mesh(BOX, [M.ink, M.ink, M.ink, M.ink, face, M.ink]);
+    wall.scale.set(10, 5, .3);
+    wall.position.set(0, 3.6, -4.7);
+    g.add(wall);
+    // Kürsü ve Hulki
+    box(g, 1.2, 1.2, .8, M.white, 1.8, .9, -2);
+    box(g, 1.24, .25, .84, M.teal, 1.8, 1.85, -2, false);
+    cyl(g, .025, .025, .5, M.ink, 1.8, 2.1, -1.75, 6);
+    const hulki = new THREE.Group();
+    hulki.position.set(1.8, .9, -2.75);
+    g.add(hulki);
+    const suit = new THREE.Mesh(new THREE.CapsuleGeometry(.28, .7, 4, 10), mat(0x1d2a44, { roughness: .7 }));
+    suit.position.y = .68; suit.castShadow = true;
+    const shirt = new THREE.Mesh(new THREE.BoxGeometry(.2, .3, .05), M.white);
+    shirt.position.set(0, .98, .26);
+    const headH = new THREE.Mesh(new THREE.SphereGeometry(.23, 12, 10), mat(0xe2b48f));
+    headH.position.y = 1.45;
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(.245, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x2b2b2b));
+    hair.position.y = 1.5;
+    hulki.add(suit, shirt, headH, hair);
+    const mkLabel = (parent, cls, y) => {
+      const wrap = document.createElement("div");
+      wrap.className = "lbl";
+      const d = document.createElement("div");
+      d.className = cls;
+      wrap.appendChild(d);
+      const o = new CSS2DObject(wrap);
+      o.position.set(0, y, 0);
+      parent.add(o);
+      return d;
+    };
+    mkLabel(hulki, "me-tag speaker", 2.1).textContent = tt("summit.speaker");
+    const talk = mkLabel(hulki, "bubble talk", 2.95);
+    // Konuşma: selam, katalogdaki gerçek rakamlar, davet
+    const facts = data.companies.flatMap(c => c.projects.flatMap(p => p.metrics.slice(0, 1).map(m => `${c.name}${p.app && p.app.length < 14 ? " " + p.app : ""}: ${m[0]} ${m[1]}`)));
+    const lines = [tt("hulki.hi"), ...data.kpis.slice(0, 3).map(x => `Loodos: ${x[0]} ${x[1]}`), ...facts.slice(0, 6), tt("hulki.coffee"), tt("hulki.catalog")];
+    let li = 0, talkT = 1;
+    // Dinleyiciler
+    const crowd = [];
+    for (let i = 0; i < 14; i++) crowd.push({ parts: person(g, rand(-4.5, 4.5), 0, rand(1.2, 4.5)), ph: Math.random() * 6 });
+    // Kahve standı: "Coffee & Chat"
+    const kiosk = new THREE.Group();
+    kiosk.position.set(-6.4, 0, 2.6);
+    g.add(kiosk);
+    box(kiosk, 2.6, 1.1, 1.4, M.white, 0, 0, 0);
+    box(kiosk, 2.8, .12, 1.6, M.teal, 0, 1.1, 0, false);
+    for (const x of [-1.2, 1.2]) box(kiosk, .08, 1.4, .08, M.ink, x, 1.2, -.6);
+    const kTex = canvasTex(512, 160);
+    kTex.ctx.fillStyle = "#1ab0ba"; kTex.ctx.fillRect(0, 0, 512, 160);
+    kTex.ctx.fillStyle = "#ffffff"; kTex.ctx.textAlign = "center"; kTex.ctx.font = `800 58px "Red Hat Display"`; kTex.ctx.fillText("☕ Coffee & Chat", 256, 92);
+    kTex.ctx.font = `700 30px "Red Hat Display"`; kTex.ctx.fillText("loodos", 256, 138);
+    kTex.tex.needsUpdate = true;
+    const kFace = new THREE.MeshStandardMaterial({ map: kTex.tex, emissive: 0xffffff, emissiveMap: kTex.tex, emissiveIntensity: .5 });
+    const kSign = new THREE.Mesh(BOX, [M.teal, M.teal, M.teal, M.teal, kFace, kFace]);
+    kSign.scale.set(2.6, .8, .1); kSign.position.set(0, 3, -.6);
+    kiosk.add(kSign);
+    for (const x of [-.7, .2]) cyl(kiosk, .1, .08, .22, M.white, x, 1.1, .3, 10);
+    g.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "summit", id: "summit" }; });
+    pickables.push(g);
+    pinLabel(g, 10.5, `<span class="pin-logo" style="background:#0b1d2a;color:#fff;font:800 11px var(--f-display)">WS</span><span class="pin-name">Web Summit 2026<small>Lisboa</small></span>`, "#1ab0ba", () => selectSummit?.());
+    anim.push((dt, t) => {
+      hulki.rotation.y = Math.sin(t * .7) * .35;
+      hulki.position.y = .9 + Math.abs(Math.sin(t * 4)) * .015;
+      for (const c of crowd) { const hop = Math.max(0, Math.sin(t * 2 + c.ph)) * .05; c.parts[0].position.y = .52 + hop; c.parts[1].position.y = 1.25 + hop; }
+      if ((talkT -= dt) <= 0) {
+        if (talk.classList.contains("show")) { talk.classList.remove("show"); talkT = .8; }
+        else { talk.textContent = lines[li++ % lines.length]; talk.classList.add("show"); talkT = 5; }
+      }
+    });
+  }
+
   let event = "none";
   function setEvent(kind, info) {
     // Portekiz sayfasında süsleme her zaman Portekiz'e özel (yılbaşı ışıkları yine yanar)
@@ -819,6 +933,8 @@ export function buildExtras(k) {
     flagMat.map = flagMat.emissiveMap = flagTexNow;
     hqFlag.material.map = hqFlag.material.emissiveMap = sideFlagMat.map = PT ? ptFlagTex : trFlagTex;
     hqFlag.visible = national || pt;
+    roofFlagMat.map = PT ? ptFlagTex : trFlagTex;
+    roofFlags.visible = national || pt;
     treeLights.visible = newyear;
     xmas.visible = newyear;
     for (const f of fountain) f.visible = !newyear;

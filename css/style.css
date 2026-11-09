@@ -415,6 +415,9 @@ svg { display: block; }
 .walk-btn:hover { background: var(--teal-ink); }
 .app.walking .walk-btn { background: var(--ink); color: var(--on-ink); }
 .app.walking .hint, .app.flat .walk-btn { display: none; }
+.me-tag.speaker { background: #0b1d2a; }
+.bubble.talk { max-width: 240px; background: #0b1d2a; color: #fff; }
+.bubble.talk::after { border-top-color: #0b1d2a; }
 .me-tag { position: absolute; left: 0; bottom: 0; transform: translateX(-50%); white-space: nowrap; pointer-events: none; padding: 2px 9px; border-radius: 99px; background: var(--teal); color: #fff; font: 700 11px var(--f-display); box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
 .walk-hud {
   position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); z-index: 14; display: flex; align-items: center; gap: 10px;

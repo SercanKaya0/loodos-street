@@ -23,6 +23,8 @@ Loodos'un müşteri projelerini izometrik bir sokakta gezdiren etkileşimli hari
 - Bug ambulansı: ara sıra kısık sirenle bir dükkâna gider; ekip kaldırıma masa kurup MacBook açar, tepelerinde terminalde hotfix komutları akar, sonra toplanıp ayrılır; panelde görev adımları ve oturumluk bug hesabı (1 sn = 1 dk). Siren sağdaki hoparlör düğmesiyle kapatılır.
 - Sahne: Three.js r160 (`vendor/three`, CDN'siz). WebGL yoksa liste görünümüne düşer.
 - Portekiz sayfası (`/portugal/`): azulejo çinili dükkânlar, calçada portuguesa kaldırımlar, sarı Lizbon tramvayları, Portekiz bayrakları ve süsleri, Barcelos horozu, "Olá, Portugal!" billboard'u. Sayfa `index.html`'den üretilir; `index.html` değişince `python3 -I tools/pages.py` çalıştırılmalı (yerelde `?theme=pt` ile de denenebilir).
+- Web Summit 2026 (yalnız `/portugal/`, açılışta gelir; `#web-summit`): LED ekranlı sahne, kürsüde konuşmacı Hulki ve konuşma balonları, dinleyiciler, "Coffee & Chat" standı; panelde ürün kataloğu bağlantısı. "Tanışalım" linki `js/main.js` içindeki `SUMMIT.meetUrl` ile açılır.
+- Ses: `assets/audio/a-portuguesa.m4a`, Portekiz milli marşı "A Portuguesa", ABD Donanma Bandosu kaydı (kamu malı, Wikimedia Commons: File:A Portuguesa.ogg). Portekiz sayfasında ses açıksa ilk dokunuşta bir kez çalar.
 - Paylaşılabilir linkler: `#a101`, `#mahalle/fnb`, `#merkez`, `#sunum`.
 
 Veriyi yenilemek için katalog JSON'larını (`solutions.json`, `company.json`, `products.json`) bir klasöre indirip:

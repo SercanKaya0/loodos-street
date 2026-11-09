@@ -7,6 +7,12 @@ import { createSiren } from "./siren.js";
 const D = localData();
 // Tema sayfası: /portugal/ (tools/pages.py üretir) ya da yerelde ?theme=pt
 const THEME = document.querySelector('meta[name="street-theme"]')?.content || new URLSearchParams(location.search).get("theme") || "";
+// Web Summit 2026 (yalnız /portugal/). meetUrl: "gelin tanışalım" linki; boşken buton gizlenir.
+const SUMMIT = { meetUrl: "", catalogUrl: "https://playground.loodos.com/" };
+// A Portuguesa: ABD Donanma Bandosu kaydı (kamu malı, Wikimedia Commons). Ses açıksa ilk dokunuşta bir kez çalar.
+const anthem = THEME === "pt" ? Object.assign(new Audio("assets/audio/a-portuguesa.m4a"), { volume: .35, preload: "none" }) : null;
+let anthemPlayed = false;
+function playAnthem() { if (anthem && siren.enabled) { anthem.currentTime = 0; anthem.play().catch(() => {}); anthemPlayed = true; } }
 const THEME_INFO = { pt: { big: "Olá, Portugal!", line: "Bem-vindos à Loodos Street", small: "Loodos 🇹🇷 ❤ 🇵🇹" } }[THEME] || null;
 const $ = s => document.querySelector(s);
 const app = $("#app");
@@ -306,6 +312,23 @@ function showLead() {
   }));
   panel.querySelector("[data-lead-reset]")?.addEventListener("click", () => { lead = { sector: null, prods: [] }; saveLead(); showLead(); });
   panel.querySelectorAll("[data-goto]").forEach(b => b.addEventListener("click", () => openCompany(b.dataset.goto)));
+  renderKpis();
+}
+
+function showSummit() {
+  ctx = { kind: "summit" };
+  setJourneyFor(null);
+  setHash("web-summit");
+  openPanel(`${head('<span class="p-logo txt" style="--c:#0b1d2a">WS</span>', esc(t("summit.kicker")), esc(t("summit.title")), esc(t("summit.sub")))}
+    <div class="p-body">
+      <p class="lead">${esc(t("summit.lead"))}</p>
+      <div class="sec"><h3>${t("summit.speakerH")}</h3><div class="prod-list"><button data-act="hulki"><span class="p-logo txt" style="--c:#1d2a44;width:40px;height:40px;border-radius:11px">H</span><span><b>Hulki</b><small>Loodos · Web Summit 2026</small></span></button></div></div>
+      ${SUMMIT.meetUrl ? `<a class="cta" href="${esc(SUMMIT.meetUrl)}" target="_blank" rel="noopener">${esc(t("summit.meet"))} ${ICON.ext}</a>` : ""}
+      <a class="cta ${SUMMIT.meetUrl ? "ghost" : ""}" href="${esc(SUMMIT.catalogUrl)}" target="_blank" rel="noopener">${esc(t("summit.catalog"))} ${ICON.ext}</a>
+      ${anthem ? `<button class="cta ghost" data-act="anthem">${esc(t("summit.anthem"))}</button>` : ""}
+    </div>`);
+  panel.querySelector("[data-act=anthem]")?.addEventListener("click", () => { if (!siren.enabled) { siren.setEnabled(true); prefs.set("ls.sound", "on"); syncSound(); } playAnthem(); });
+  panel.querySelector("[data-act=hulki]")?.addEventListener("click", () => street.select("summit", "summit"));
   renderKpis();
 }
 
@@ -748,6 +771,7 @@ async function boot() {
         else if (sel.kind === "vehicle") showVehicle(sel.id);
         else if (sel.kind === "ambulance") showAmbulance();
         else if (sel.kind === "lead") showLead();
+        else if (sel.kind === "summit") showSummit();
         else if (sel.kind === "hq") showHQ();
         else if (sel.kind === "sector") showSector(sel.id);
       },
@@ -797,6 +821,8 @@ function wireUi() {
   });
   syncSound();
   syncLabels();
+  // Marş: tarayıcılar sesi ancak bir dokunuştan sonra açar; ses açıksa ilk dokunuşta bir kez çalar
+  if (anthem) addEventListener("pointerdown", () => { if (!anthemPlayed) playAnthem(); }, { capture: true, once: true });
 
   // Sunum: kontrol çubuğu dışındaki her dokunuş, tekerlek ya da Esc sunumu bitirir ve kontrolü kullanıcıya verir.
   $("#presenter").addEventListener("click", e => {
@@ -856,7 +882,12 @@ function wireUi() {
     const act = a.dataset.action;
     if (act === "present") presenter.on ? stopPresentation() : startPresentation();
     else if (act === "labels") { labelsAll = !labelsAll; prefs.set("ls.labels", labelsAll ? "on" : "off"); syncLabels(); }
-    else if (act === "sound") { siren.setEnabled(!siren.enabled); prefs.set("ls.sound", siren.enabled ? "on" : "off"); syncSound(); }
+    else if (act === "sound") {
+      siren.setEnabled(!siren.enabled);
+      prefs.set("ls.sound", siren.enabled ? "on" : "off");
+      if (!siren.enabled) anthem?.pause();
+      syncSound();
+    }
     else if (act === "home") goHome();
     else if (act === "zoom-in") street.zoomBy(1.4);
     else if (act === "zoom-out") street.zoomBy(1 / 1.4);
@@ -868,6 +899,7 @@ function wireUi() {
       else if (ctx.kind === "vehicle") street.select("vehicle", ctx.id);
       else if (ctx.kind === "ambulance") street.select("ambulance", "hotfix");
       else if (ctx.kind === "lead") street.select("lead", "lead");
+      else if (ctx.kind === "summit") street.select("summit", "summit");
       else if (ctx.kind === "sector") street.focusSector(ctx.id);
       else street.select("hq", "loodos");
     }
@@ -879,6 +911,11 @@ function finishBoot(is3d) {
   const h = decodeURIComponent(location.hash.slice(1));
   if (h === "sunum" || h === "present") startPresentation();
   else if (h === "yeni-dukkan" && is3d) { street.select("lead", "lead"); showLead(); }
+  else if (THEME === "pt" && (h === "web-summit" || !h)) {
+    // Portekiz sayfası Web Summit davetiyle açılır
+    if (is3d) setTimeout(() => { street.select("summit", "summit"); showSummit(); }, h ? 0 : 900);
+    else showSummit();
+  }
   else if (byCompany(h)) openCompany(h);
   else if (h.startsWith("mahalle/") && bySector(h.slice(8))) focusSector(h.slice(8));
   else if (h === "merkez") { street.select("hq", "loodos"); showHQ(); }
