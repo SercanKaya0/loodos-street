@@ -278,3 +278,16 @@ body.embed .top { justify-content: flex-end; }
   .toasts, .focusbar { top: 128px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* "+1 kat" rising over the office when a floor is added (world.js floatLabel) */
+.wc-float {
+  padding: 4px 12px;
+  border: 1px solid rgba(121, 241, 129, .5);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(61, 148, 61, .85), rgba(20, 60, 22, .9));
+  box-shadow: 0 0 18px rgba(121, 241, 129, .45);
+  color: #fff;
+  font: 500 15px/1.2 Urbanist, var(--f-body), sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+}

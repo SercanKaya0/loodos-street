@@ -446,8 +446,17 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
     badges.office = badge("office", x, 30, z);
   }
   let floorCount = 0;
+  // "+1 kat" rising over the office when it grows.
+  function floatLabel(text, pos) {
+    const div = document.createElement("div");
+    div.className = "wc-float"; div.textContent = text;
+    const o = new CSS2DObject(div); o.position.copy(pos); scene.add(o);
+    const y = pos.y;
+    tween(2.2, k => { o.position.y = y + k * 6; div.style.opacity = String(k < .15 ? k / .15 : 1 - (k - .15) / .85); }, () => { scene.remove(o); div.remove(); });
+  }
   function setFloors(n, animate = true) {
     n = clamp(n, BASE_FLOORS, MAX_FLOORS);
+    const grow = n - floorCount;
     while (floorCount < n) {
       const f = new THREE.Mesh(floorGeo, [officeFacade, officeFacade, M.roof, M.roof, officeFacade, officeFacade]);
       f.castShadow = f.receiveShadow = true;
@@ -468,6 +477,7 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
     const from = officeCrown.position.y;
     if (animate) tween(1.1, k => { officeCrown.position.y = lerp(from, top, ease(k)); }); else officeCrown.position.y = top;
     badges.office.position.y = top + 6;
+    if (animate && grow > 0) floatLabel(`+${grow} kat`, new THREE.Vector3(SPOTS.office.x, top + 3, SPOTS.office.z));
   }
   pickTag(office, { type: "office" });
   setFloors(BASE_FLOORS, false);
@@ -614,6 +624,7 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
     pickTag(releaseBoard, { type: "github" });
   }
   let releaseCount = -1;
+  let releaseLatest = "";
   function drawRelease(n) {
     redraw(releaseTex, (g, w, h) => {
       const gr = g.createLinearGradient(0, 0, w, h);
@@ -627,10 +638,15 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
       g.fillText(String(n), 44, h - 52);
       g.font = "400 48px Urbanist, sans-serif"; g.fillStyle = n ? "#9cf39a" : "rgba(255,255,255,.55)";
       g.fillText(n ? "yeni sürüm yayında" : "sessiz bir hafta", 44 + numW + 28, h - 66);
+      if (releaseLatest) {
+        g.font = "500 36px Urbanist, sans-serif"; g.fillStyle = "#ffffff"; g.textBaseline = "top"; g.textAlign = "right";
+        fitText(g, `son: ${releaseLatest}`, w - 520, 36); g.fillText(`son: ${releaseLatest}`, w - 44, 48); g.textAlign = "left";
+      }
     });
   }
-  function setReleases(n) {
+  function setReleases(n, latest = "") {
     n = Math.max(0, n | 0);
+    if (latest !== releaseLatest) { releaseLatest = latest || ""; drawRelease(Math.max(n, 0)); }
     if (n === releaseCount) return;
     const grew = releaseCount >= 0 && n > releaseCount;
     releaseCount = n;
@@ -775,6 +791,10 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
     if (it.src === "jira") return it.status === "done" ? 0x1f4a2a : 0x173a6e;
     return it.status === "done" ? 0x1f4a2a : 0x23282d;
   }
+  // A lit strip along the crate's front top edge in its priority's colour (highest red … low grey).
+  const prioGeo = new THREE.BoxGeometry(2.0, .12, .06);
+  const prioMats = Object.fromEntries(Object.entries(PRIO_COLOR).map(([k, c]) => [k, new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 1.6, toneMapped: false })]));
+  const prioMat = it => prioMats[it.prio] || prioMats.medium;
   function makeCrate(it) {
     const g = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: crateColor(it), roughness: .45, metalness: .25, emissive: 0xffffff, emissiveIntensity: 0 });
@@ -789,8 +809,10 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
       const band = new THREE.Mesh(new THREE.BoxGeometry(2.34, .14, .18), new THREE.MeshStandardMaterial({ color: 0x000000, transparent: true, opacity: .18 }));
       band.position.set(0, .72, s * .68); g.add(band);
     }
-    g.add(body, lab);
-    g.userData = { id: it.id, it, mat, tex, labMat: lab.material, sig: "" };
+    const strip = new THREE.Mesh(prioGeo, prioMat(it));
+    strip.position.set(0, 1.3, 1.17);
+    g.add(body, lab, strip);
+    g.userData = { id: it.id, it, mat, tex, labMat: lab.material, sig: "", strip, lane: it.status };
     pickTag(g, { type: "item", id: it.id });
     crateGroup.add(g);
     return g;
@@ -830,7 +852,10 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
         c.userData.sig = sig;
         redraw(c.userData.tex, (g, w, h) => drawCrateLabel(g, w, h, it));
         c.userData.mat.color.set(crateColor(it));
+        c.userData.strip.material = prioMat(it);
       }
+      // A new lane: a forklift carries the crate over; within a lane the crates just slide (re-sort).
+      if (c.userData.lane !== lane) { c.userData.lane = lane; carry(c, target); return; }
       if (c.userData.busy) { c.userData.dest = target; return; }
       if (c.position.distanceTo(target) > .05) hop(c, target);
     });
@@ -847,6 +872,125 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
       c.position.y = target.y + Math.sin(Math.PI * k) * hgt;
       c.rotation.y = far > 6 ? Math.sin(Math.PI * k) * .5 : 0;
     }, () => { c.userData.busy = false; if (c.userData.dest) { const d = c.userData.dest; c.userData.dest = null; hop(c, d); } });
+  }
+
+  /* ---------- forklift: a status change carries the crate to its new lane ----------
+     One at a time from a queue: the lift drives in, raises the crate, backs into the aisle in front of
+     the lanes, drives across, sets it down in its new slot and backs away. */
+  const lift = (() => {
+    const dark = new THREE.MeshStandardMaterial({ color: 0x1b1f24, roughness: .45, metalness: .5 });
+    const parts = {
+      body: new RoundedBoxGeometry(2.1, 1, 2.4, 2, .14), cab: new RoundedBoxGeometry(1.7, .9, 1.2, 2, .12),
+      mast: new THREE.BoxGeometry(.14, 2.4, .14), fork: new THREE.BoxGeometry(.2, .08, 1.7),
+      wheel: new THREE.CylinderGeometry(.36, .36, .28, 14).rotateZ(Math.PI / 2), light: new THREE.BoxGeometry(1.9, .08, .06),
+    };
+    return { dark, parts };
+  })();
+  function makeLift(color) {
+    const g = new THREE.Group();
+    const edge = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.2, toneMapped: false });
+    const body = new THREE.Mesh(lift.parts.body, lift.dark); body.position.set(0, .75, .6);
+    const cab = new THREE.Mesh(lift.parts.cab, lift.dark); cab.position.set(0, 1.65, .9);
+    const glow = new THREE.Mesh(lift.parts.light, edge); glow.position.set(0, 1.27, -.62);
+    g.add(body, cab, glow);
+    for (const x of [-.55, .55]) { const m = new THREE.Mesh(lift.parts.mast, lift.dark); m.position.set(x, 1.4, -.7); g.add(m); }
+    const forks = new THREE.Group();
+    for (const x of [-.45, .45]) { const f = new THREE.Mesh(lift.parts.fork, edge); f.position.set(x, 0, -1.45); forks.add(f); }
+    forks.position.y = .3; g.add(forks);
+    for (const [x, z] of [[-1, -.2], [1, -.2], [-1, 1.3], [1, 1.3]]) { const w = new THREE.Mesh(lift.parts.wheel, lift.dark); w.position.set(x, .36, z); g.add(w); }
+    g.userData = { forks, edge };
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    scene.add(g);
+    return g;
+  }
+  const carryQueue = [];
+  let carrying = false;
+  function carry(c, target) {
+    c.userData.busy = true;
+    const queued = carryQueue.find(j => j.c === c);
+    if (queued) queued.target = target; else carryQueue.push({ c, target });
+    if (!carrying) nextCarry();
+  }
+  function nextCarry() {
+    const job = carryQueue.shift();
+    if (!job) { carrying = false; return; }
+    carrying = true;
+    const { c } = job;
+    const T = job.target.clone(), F = c.position.clone();
+    const color = new THREE.Color(LANE_COLOR[c.userData.lane] || "#ffffff");
+    const L = makeLift(color);
+    const REACH = 1.55, aisle = SPOTS.plaza.z + 15;
+    const fwd = r => new THREE.Vector3(-Math.sin(r), 0, -Math.cos(r));
+    // The crate rides on the forks, in front of the lift.
+    const ride = (lift = 0) => { const p = L.position.clone().addScaledVector(fwd(L.rotation.y), REACH); c.position.set(p.x, F.y + lift, p.z); c.rotation.y = L.rotation.y; };
+    const side = Math.sign(T.x - F.x) || 1;
+    const across = Math.max(.6, Math.abs(T.x - F.x) / 32);
+    L.position.set(F.x, 0, F.z + REACH + 2.4); L.scale.setScalar(.001);
+    const legs = [
+      [.35, k => { L.scale.setScalar(Math.max(.001, ease(k))); L.position.z = lerp(F.z + REACH + 2.4, F.z + REACH, ease(k)); }],
+      [.25, k => { L.userData.forks.position.y = lerp(.3, .9, ease(k)); ride(ease(k) * .6); }],
+      [.35, k => { L.position.z = lerp(F.z + REACH, aisle, ease(k)); ride(.6); }],
+      [across, k => { const e = ease(k); L.position.x = lerp(F.x, T.x, e); L.rotation.y = -side * Math.PI / 2 * Math.sin(Math.PI * Math.min(1, k * 1.15)); ride(.6); }],
+      [.35, k => { L.rotation.y = 0; L.position.set(T.x, 0, lerp(aisle, T.z + REACH, ease(k))); ride(.6); }],
+      [.25, k => { L.userData.forks.position.y = lerp(.9, .3, ease(k)); ride((1 - ease(k)) * .6); }],
+    ];
+    let i = 0;
+    const step = () => {
+      if (i >= legs.length) {
+        c.position.copy(T); c.rotation.y = 0;
+        tween(.22, k => { c.scale.y = 1 - Math.sin(Math.PI * k) * .1; });
+        c.userData.busy = false;
+        if (c.userData.dest) { const d = c.userData.dest; c.userData.dest = null; if (d.distanceTo(T) > .05) hop(c, d); }
+        // back away and fade, while the next crate's lift already sets off
+        const from = L.position.z;
+        tween(.5, k => { L.position.z = from + ease(k) * 3; L.scale.setScalar(Math.max(.001, 1 - k)); }, () => { scene.remove(L); L.userData.edge.dispose(); });
+        nextCarry();
+        return;
+      }
+      const [dur, fn] = legs[i++];
+      tween(dur, fn, step);
+    };
+    step();
+  }
+
+  /* ---------- confetti: a done issue showers paper from the Jira tower (or GitHub for a PR) ---------- */
+  const confettiGeo = new THREE.PlaneGeometry(.34, .2);
+  const confettiMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false });
+  const CONFETTI_COLORS = ["#2684ff", "#79f181", "#f5c542", "#ff6b6b", "#8b7dff", "#ffffff", "#1ab0ba"].map(c => new THREE.Color(c));
+  const confettis = [];
+  const dummy = new THREE.Object3D();
+  function confetti(where = "jira") {
+    const s = SPOTS[where] || SPOTS.jira;
+    const n = 240, mesh = new THREE.InstancedMesh(confettiGeo, confettiMat, n), parts = [];
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 8;
+      parts.push({
+        p: new THREE.Vector3(s.x + (Math.random() - .5) * 4, (s.roof || 20) + 3, s.z + (Math.random() - .5) * 4),
+        v: new THREE.Vector3(Math.cos(a) * r, 9 + Math.random() * 9, Math.sin(a) * r),
+        r: new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6),
+        w: new THREE.Vector3((Math.random() - .5) * 14, (Math.random() - .5) * 14, (Math.random() - .5) * 14),
+      });
+      mesh.setColorAt(i, CONFETTI_COLORS[i % CONFETTI_COLORS.length]);
+    }
+    mesh.instanceColor.needsUpdate = true;
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    confettis.push({ mesh, parts, t: 0 });
+  }
+  function stepConfetti(dt) {
+    for (let i = confettis.length - 1; i >= 0; i--) {
+      const cf = confettis[i]; cf.t += dt;
+      const shrink = clamp((4 - cf.t) / .8, 0, 1);
+      cf.parts.forEach((q, j) => {
+        q.v.y -= 9 * dt; q.v.multiplyScalar(1 - dt * 1.6); q.v.y = Math.max(q.v.y, -4.5);
+        q.p.addScaledVector(q.v, dt);
+        q.r.x += q.w.x * dt; q.r.y += q.w.y * dt; q.r.z += q.w.z * dt;
+        dummy.position.copy(q.p); dummy.rotation.copy(q.r); dummy.scale.setScalar(shrink); dummy.updateMatrix();
+        cf.mesh.setMatrixAt(j, dummy.matrix);
+      });
+      cf.mesh.instanceMatrix.needsUpdate = true;
+      if (cf.t > 4) { scene.remove(cf.mesh); cf.mesh.dispose(); confettis.splice(i, 1); }
+    }
   }
 
   /* Seçili kasanın üstünde dönen ok ve zeminde halka */
@@ -1167,6 +1311,7 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
       if (runCount) belt.lights.emissiveIntensity = 1.6 + Math.sin(tick * 5) * .6;
       if (certOn) { certBeacon.rotation.y += dt * 2.4; certMat.emissiveIntensity = 2.2 + Math.sin(tick * 6) * 1; }
       envelopes.forEach((e, i) => { if (!e.visible) return; const a = tick * .6 + i * (Math.PI * 2 / 8); e.position.set(Math.cos(a) * 1.4, 3 + Math.sin(tick * 2 + i) * .25, Math.sin(a) * 1.4); e.rotation.y = -a; });
+      stepConfetti(dt);
       for (let i = bursts.length - 1; i >= 0; i--) {
         const b = bursts[i]; b.t += dt;
         const pos = b.pts.geometry.attributes.position;
@@ -1192,5 +1337,5 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
   }
   frame();
 
-  return { select, setName, setItems, setReviews, setCI, setOpen, setFloors, setBadge, setBadgesVisible, setTimeMode, setFocus, celebrate, flyTo, intro, attract, setRuns, setReleases, setCertWarning, crateIds: () => [...crates.keys()] };
+  return { select, setName, setItems, setReviews, setCI, setOpen, setFloors, setBadge, setBadgesVisible, setTimeMode, setFocus, celebrate, flyTo, intro, attract, setRuns, setReleases, setCertWarning, confetti, crateIds: () => [...crates.keys()] };
 }

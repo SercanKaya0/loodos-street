@@ -93,7 +93,7 @@ function render() {
   world.setBadge("mailbox", "İnceleme", reviews.length ? `${reviews.length} istek` : "boş", reviews.length ? "review" : "");
   const extra = state.extra ?? {};
   world.setRuns?.(extra.runs ?? 0);
-  world.setReleases?.(extra.releases ?? 0);
+  world.setReleases?.(extra.releases ?? 0, extra.latestRelease ?? "");
   world.setCertWarning?.(!!extra.certWarning);
   if (extra.me?.name && !entered) enter(extra.me.name);
 
@@ -139,6 +139,8 @@ function onEvent(e) {
   const isDone = (e.type === "moved" && e.item.status === "done") || e.type === "merged";
   if (isDone && (e.by === "sen" || e.type === "merged" || !e.item.demo)) bumpDone();
   if (e.type === "merged") world.celebrate("github");
+  // Done: confetti from the Jira tower (GitHub for a PR) once the forklift has set the crate down.
+  if (isDone) setTimeout(() => world.confetti?.(e.item.src === "gh" || e.item.kind === "pr" ? "github" : "jira"), 1900);
   if (isDone) setTimeout(() => world.celebrate("office"), 900);
   for (const l of log) l.fresh = false;
   log.unshift({ ...d, at: e.at, fresh: true });
