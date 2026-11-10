@@ -1,0 +1,48 @@
+# GitHub Pages: the street from main, WorkCity from feature/workcity under /workcity/.
+# Runs on a push to either branch (or by hand); the site is built from both every time, so neither
+# side is lost while WorkCity lives on its own branch.
+name: Pages
+
+on:
+  push:
+    branches: [main, feature/workcity]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/workcity
+          path: workcity
+      - name: Build the site
+        run: |
+          mkdir _site
+          rsync -a --exclude .git --exclude .github main/ _site/
+          # WorkCity and the three.js addons it needs, from its branch.
+          rsync -a workcity/vendor/ _site/vendor/
+          rsync -a workcity/live/ _site/live/
+          rsync -a workcity/live/ _site/workcity/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
