@@ -953,7 +953,7 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
     const nightLen = 24 - (ss - sr), f = ((h - ss + 24) % 24) / nightLen;
     return { elev: -16 * Math.sin(Math.PI * f), az: lerp(-70, -110, f) };
   }
-  const FOG = { day: new THREE.Color(0x9fb3c2), dusk: new THREE.Color(0x6e5a63), night: new THREE.Color(0x07090b) };
+  const FOG = { day: new THREE.Color(0x9fb3c2), dusk: new THREE.Color(0x6e5a63), night: new THREE.Color(0x141a22) };
   function applySun() {
     // "Oto": Hub'ın koyu dili. Güneşin gerçek konumunu izler ama gün içinde de mavi saatte kalır;
     // gündüz/akşam istenirse üstteki düğmelerden seçilir.
@@ -978,15 +978,16 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
       sun.color.setHSL(.09 + .04 * day, lerp(.85, .35, day), lerp(.62, .93, day));
     } else {
       sun.position.set(-120, 200, 140);
-      sun.intensity = .35;
-      sun.color.set(0x9fb6ff);
+      // Bright moonlight: the city reads clearly at night, like a lit dashboard.
+      sun.intensity = .9;
+      sun.color.set(0xaec2ff);
     }
-    hemi.intensity = lerp(.32, 1.05, day) + golden * .1;
-    hemi.color.set(night > .5 ? 0x3a4a66 : 0xcfe2ff).lerp(new THREE.Color(0xffc49a), golden * .5);
-    hemi.groundColor.set(night > .5 ? 0x0c0e10 : 0x3a3a3a);
+    hemi.intensity = lerp(.75, 1.05, day) + golden * .1;
+    hemi.color.set(night > .5 ? 0x5a6e96 : 0xcfe2ff).lerp(new THREE.Color(0xffc49a), golden * .5);
+    hemi.groundColor.set(night > .5 ? 0x1c2128 : 0x3a3a3a);
     const fog = FOG.day.clone().lerp(FOG.dusk, golden * (1 - night * .5)).lerp(FOG.night, night);
     scene.fog.color.copy(fog);
-    renderer.toneMappingExposure = lerp(.62, .5, golden) * (night > .5 ? 1.1 : 1);
+    renderer.toneMappingExposure = lerp(.62, .5, golden) * (night > .5 ? 1.45 : 1);
     stars.material.opacity = night * .9;
     for (const m of windowMats) m.emissiveIntensity = (.02 + night * .8 + golden * .15) * m.userData.glow;
     if (focusOn) officeFacade.emissiveIntensity = 1.6;
@@ -1000,7 +1001,7 @@ export function createWorld(el, { onPick = () => {}, onHover = () => {} } = {}) 
       envRT?.dispose();
       envRT = pmrem.fromScene(envScene, 0, .1, 200);
       scene.environment = envRT.texture;
-      scene.environmentIntensity = night > .5 ? .25 : 1;
+      scene.environmentIntensity = night > .5 ? .55 : 1;
     }
     return { elev, night };
   }
