@@ -694,62 +694,6 @@ window.STREET_EN = {
    ]
   },
   {
-   "id": "fibabanka",
-   "name": "Fibabanka",
-   "sector": "fin",
-   "logo": null,
-   "projects": [
-    {
-     "key": "Fibabanka × AlışGidiş",
-     "app": "× AlışGidiş",
-     "sub": "Embedded finance",
-     "d": "The bank’s credit and wallet in the middle of shopping: credit at checkout, loyalty and gamification in one flow.",
-     "metrics": [
-      [
-       "30+",
-       "microservices"
-      ]
-     ],
-     "when": null,
-     "ctx": "Banks want engagement beyond bill checks; retailers want financial services that increase basket value. Fibabanka brings both together in AlışGidiş, with wallet and credit inside the shopping experience.",
-     "need": "Embed a banking-grade wallet and credit inside a retail experience, so the user doesn’t feel the transition from browsing to a credit application.",
-     "approach": "A payment core with an adapter architecture integrates multiple payment providers. Identity management is built on OAuth2 and OpenID Connect, and the Fibabanka Credit API is wired into the checkout flow.",
-     "features": [
-      [
-       "Digital wallet",
-       "Fibabanka-backed top-up, balance and transaction history, the financial backbone connecting shopping to banking."
-      ],
-      [
-       "Credit at checkout",
-       "Eligibility, instalment plan selection and application happen during purchase, within the shopping experience."
-      ],
-      [
-       "Adapter-based payment core",
-       "iyzico, Masterpass and the Fibabanka Credit API plug into the same payment core through adapters."
-      ],
-      [
-       "Identity and access",
-       "Secure sign-in and access built on OAuth2, OpenID Connect, JWT and role-based access control."
-      ]
-     ],
-     "tech": [
-      "iyzico",
-      "Masterpass",
-      "Fibabanka Credit API",
-      "OAuth2",
-      "OpenID Connect",
-      "JWT",
-      "RBAC",
-      "ASP.NET Core",
-      "Kubernetes"
-     ],
-     "prods": [],
-     "img": "assets/cases/alisgidis.webp",
-     "pdf": "1jFtJAMLVHEsxw0NvZ7TcF12pvlKhSZvw"
-    }
-   ]
-  },
-  {
    "id": "ekuri",
    "name": "Eküri",
    "sector": "fin",
@@ -871,7 +815,7 @@ window.STREET_EN = {
         "The Hazır Al (order-ahead) module: customers pick a store, order and pay in the app, and their drink is ready when they arrive; each preparation step is sent by push or SMS.",
         "The same module’s loyalty, wallet and QR flow: Çekirdek loyalty points, a top-up wallet, and one QR scan at the till for recognition, rewards and payment.",
         "The e-commerce module: packaged coffee, chocolate and gift boxes on kahvedunyasi.com and in the app, with nationwide delivery and corporate gifting.",
-        "Kahve Dünyası uses both Vendica modules together; the e-commerce module was later reused at Altınmarka and the Hazır Al module at Goa Café."
+        "Kahve Dünyası uses both Vendica modules together; the e-commerce module was later reused at Altınmarka and the Hazır Al module at GUA Coffee."
        ],
        "mods": [
         "Hazır Al (order-ahead)",
@@ -971,13 +915,13 @@ window.STREET_EN = {
    ]
   },
   {
-   "id": "goa-cafe",
-   "name": "Goa Café",
+   "id": "gua-coffee",
+   "name": "GUA Coffee",
    "sector": "fnb",
    "logo": null,
    "projects": [
     {
-     "key": "Goa Café",
+     "key": "GUA Coffee",
      "app": "",
      "sub": "Coffee chain: order-ahead",
      "d": "Order-ahead in the app for a coffee chain of around 140 stores, built on the Vendica Hazır Al module already running at Kahve Dünyası.",

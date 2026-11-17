@@ -396,7 +396,7 @@ export function buildExtras(k) {
   }
 
   // Kafeler: masalarda oturan müşteriler ve bacadan tüten buhar.
-  for (const id of ["kahve-dunyasi", "goa-cafe", "frink"]) {
+  for (const id of ["kahve-dunyasi", "gua-coffee", "frink"]) {
     const c = companies.get(id);
     if (!c) continue;
     const g = c.group, D = 7.4, H = 4.6;

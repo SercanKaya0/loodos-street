@@ -693,62 +693,6 @@ window.STREET = {
    ]
   },
   {
-   "id": "fibabanka",
-   "name": "Fibabanka",
-   "sector": "fin",
-   "logo": null,
-   "projects": [
-    {
-     "key": "Fibabanka × AlışGidiş",
-     "app": "× AlışGidiş",
-     "sub": "Gömülü finans",
-     "d": "Bankanın kredisi ve cüzdanı, alışverişin tam ortasında: ödeme anında kredi, sadakat ve oyunlaştırma tek akışta.",
-     "metrics": [
-      [
-       "30+",
-       "mikroservis"
-      ]
-     ],
-     "when": null,
-     "ctx": "Bankalar fatura kontrolünün ötesinde etkileşim, perakendeciler ise sepeti büyüten finansal hizmetler istiyor. Fibabanka bu iki hedefi AlışGidiş’te buluşturuyor: cüzdan ve kredi alışverişin içinde.",
-     "need": "Bankacılık düzeyinde cüzdan ve krediyi bir perakende deneyimine yerleştirmek; kullanıcı ürün gezmekten kredi başvurusuna geçtiğini hissetmemeli.",
-     "approach": "Adaptör mimarili bir ödeme çekirdeği üzerinden birden fazla ödeme sağlayıcısı entegre edildi. Kimlik yönetimi OAuth2 ve OpenID Connect ile kuruldu; Fibabanka Kredi API’si ödeme akışına bağlandı.",
-     "features": [
-      [
-       "Dijital cüzdan",
-       "Fibabanka destekli bakiye yükleme, bakiye ve işlem geçmişi; alışverişi bankacılığa bağlayan finansal omurga."
-      ],
-      [
-       "Ödeme adımında kredi",
-       "Uygunluk kontrolü, taksit planı seçimi ve başvuru, satın alma sırasında alışveriş deneyiminin içinde gerçekleşiyor."
-      ],
-      [
-       "Adaptörlü ödeme çekirdeği",
-       "iyzico, Masterpass ve Fibabanka Kredi API’si aynı ödeme çekirdeğine adaptörlerle bağlanıyor."
-      ],
-      [
-       "Kimlik ve yetki yönetimi",
-       "OAuth2, OpenID Connect, JWT ve rol tabanlı yetkilendirme ile güvenli oturum ve erişim."
-      ]
-     ],
-     "tech": [
-      "iyzico",
-      "Masterpass",
-      "Fibabanka Kredi API",
-      "OAuth2",
-      "OpenID Connect",
-      "JWT",
-      "RBAC",
-      "ASP.NET Core",
-      "Kubernetes"
-     ],
-     "prods": [],
-     "img": "assets/cases/alisgidis.webp",
-     "pdf": "1mumK06iK5XAXjZKObe93O-NIFk2xgIM2"
-    }
-   ]
-  },
-  {
    "id": "ekuri",
    "name": "Eküri",
    "sector": "fin",
@@ -870,7 +814,7 @@ window.STREET = {
         "Hazır Al (Gel Al) modülü: müşteri mağazayı seçer, siparişini uygulamada verip öder, vardığında içeceği hazırdır; hazırlık adımları push ya da SMS ile bildirilir.",
         "Aynı modülün sadakat, cüzdan ve QR akışı: Çekirdek sadakat puanı, bakiye yüklenebilen cüzdan; kasada tek QR okutmayla tanınma, kazanım ve ödeme.",
         "E-ticaret modülü: kahvedunyasi.com ve mobil uygulamada paket kahve, çikolata ve hediye kutuları için ülke çapında teslimat ve kurumsal hediye.",
-        "Kahve Dünyası Vendica’nın iki modülünü birlikte kullanıyor; e-ticaret modülü daha sonra Altınmarka’da, Hazır Al modülü Goa Café’de yeniden kullanıldı."
+        "Kahve Dünyası Vendica’nın iki modülünü birlikte kullanıyor; e-ticaret modülü daha sonra Altınmarka’da, Hazır Al modülü GUA Coffee’de yeniden kullanıldı."
        ],
        "mods": [
         "Hazır Al (Gel Al)",
@@ -970,13 +914,13 @@ window.STREET = {
    ]
   },
   {
-   "id": "goa-cafe",
-   "name": "Goa Café",
+   "id": "gua-coffee",
+   "name": "GUA Coffee",
    "sector": "fnb",
    "logo": null,
    "projects": [
     {
-     "key": "Goa Café",
+     "key": "GUA Coffee",
      "app": "",
      "sub": "Kahve zinciri: Hazır Al (Gel Al)",
      "d": "140 civarı mağazalı bir kahve zinciri için uygulamadan önceden sipariş; Kahve Dünyası’nda çalışan Vendica Hazır Al modülüyle kuruluyor.",
