@@ -9,7 +9,7 @@ const clamp01 = x => Math.min(1, Math.max(0, x));
 
 export function buildExtras(k) {
   const { world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
-    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagMatAlt, flagTex, crowns, data,
+    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagMatAlt, flagTex, crowns, data, planeGroups = [], vehicles = [],
     pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany, selectLead, selectHQ, leadX, theme, themeInfo, summit, selectSummit, selectBaku } = k;
   const PT = theme === "pt";   // /portugal/ sayfası
   const AZ = theme === "az";   // /azerbaycan/ sayfası
@@ -1125,6 +1125,122 @@ export function buildExtras(k) {
       }
     });
   }
+
+  // Şenlik süslemesi (yalnız /azerbaycan/): sokağa çapraz ve boylamasına flamalar, binalarda bayrak afişleri,
+  // araçların ve uçakların üstünde Türk ve Azerbaycan bayrakları
+  const vehFlagged = new Set();
+  let vehCheckT = 0;
+  const trMat = new THREE.MeshStandardMaterial({ map: trFlagTex, side: THREE.DoubleSide, roughness: .8 });
+  const azMat = new THREE.MeshStandardMaterial({ map: azFlagTex, side: THREE.DoubleSide, roughness: .8 });
+  const wavers = [];
+  function poleFlag(parent, x, y, z, mat, size = 1, pole = 1.1) {
+    box(parent, .05, pole, .05, M.ink, x, y, z, false);
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(.9 * size, .54 * size).translate(.45 * size, 0, 0), mat);
+    f.position.set(x, y + pole - .27 * size, z);
+    parent.add(f);
+    wavers.push({ f, ph: Math.random() * 6 });
+    return f;
+  }
+  function flagVehicle(v) {
+    vehFlagged.add(v);
+    const m = v.mesh, rot = m.rotation.y;
+    m.rotation.y = 0; m.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(m);
+    m.rotation.y = rot;
+    const len = bb.max.x - bb.min.x, top = bb.max.y - m.position.y;
+    if (!isFinite(len)) return;
+    const big = v.type === "truck" || v.type === "van";
+    poleFlag(m, -len * .32, top, big ? -.5 : 0, vehFlagged.size % 2 ? trMat : azMat, big ? 1.2 : .9, big ? 1.1 : .9);
+    if (big) poleFlag(m, -len * .32, top, .5, vehFlagged.size % 2 ? azMat : trMat, 1.2, 1.1);
+  }
+  if (AZ) {
+    const fest = new THREE.Group();
+    world.add(fest);
+    const spots = [], rope = [];
+    const sagLine = (x0, z0, x1, z1, y, sag, step) => {
+      const n = Math.max(2, Math.round(Math.hypot(x1 - x0, z1 - z0) / step));
+      let prev = null;
+      const ang = Math.atan2(x1 - x0, z1 - z0);   // flama ipe dik değil, ip boyunca dizilir
+      for (let i = 0; i <= n; i++) {
+        const k = i / n, p = [x0 + (x1 - x0) * k, y - sag * (1 - (2 * k - 1) ** 2), z0 + (z1 - z0) * k];
+        if (prev) rope.push(...prev, ...p);
+        if (i && i < n) spots.push([...p, ang]);
+        prev = p;
+      }
+    };
+    for (const [a, b] of walkSegments) {
+      // Direklerin arasına da yolun üstünden çapraz flama
+      for (let x = a + 24; x < b - 3; x += 24) sagLine(x, -8.75, x, 8.75, 7.6, 1.5, .9);
+      // Kaldırım boyunca, direkten direğe
+      for (const z of [-8.75, 8.75]) for (let x = a + 12; x + 24 < b - 3; x += 24) sagLine(x, z, x + 24, z, 7.9, 1.2, .9);
+      // Yolun üstünde zikzak: iki yaka arasında çapraz ipler
+      for (let x = a + 12; x + 12 < b - 3; x += 24) { sagLine(x, -8.75, x + 12, 8.75, 8, 1.6, 1); sagLine(x + 12, 8.75, x + 24, -8.75, 8, 1.6, 1); }
+    }
+    const rg = new THREE.BufferGeometry();
+    rg.setAttribute("position", new THREE.Float32BufferAttribute(rope, 3));
+    fest.add(new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: 0x2a3438 })));
+    const pn = new THREE.InstancedMesh(pennantGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: .7 }), spots.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color(), one = new THREE.Vector3(1, 1, 1);
+    const COLS = [0xe30a17, 0xffffff, 0x00b5e2, 0xef3340, 0x509e2f];
+    const up = new THREE.Vector3(0, 1, 0);
+    spots.forEach(([x, y, z, ang], i) => {
+      q.setFromAxisAngle(up, ang);
+      pn.setMatrixAt(i, m4.compose(new THREE.Vector3(x, y, z), q, one));
+      pn.setColorAt(i, c.setHex(COLS[i % COLS.length]));
+    });
+    fest.add(pn);
+
+    // Binalar: iki yan cephede boydan bayrak afişi, solda Türk, sağda Azerbaycan
+    const bannerGeo = new THREE.PlaneGeometry(1, 1);
+    for (const [, co] of companies) {
+      if (!co.dims) continue;
+      const { W, H } = co.dims, bh = Math.min(H * .7, 7), bw = Math.min(bh * .55, 2.4);
+      for (const sd of [-1, 1]) {
+        const b = new THREE.Mesh(bannerGeo, sd < 0 ? trMat : azMat);
+        b.scale.set(bh, bw, 1);   // yatay bayrak 90° döndürülüp boydan asılır
+        b.position.set(sd * (W / 2 + .06), H - .35 - bh / 2, 0);
+        b.rotation.set(0, sd * Math.PI / 2, -sd * Math.PI / 2);
+        co.group.add(b);
+      }
+    }
+
+    // Uçaklar: gövdede iki bayrak, kokpitin üstünde dalgalanan bayrak; uçanlar arkada pankart çeker
+    const bnCv = document.createElement("canvas");
+    bnCv.width = 1024; bnCv.height = 160;
+    const bc = bnCv.getContext("2d");
+    bc.fillStyle = "#ffffff"; bc.fillRect(0, 0, 1024, 160);
+    bc.drawImage(trFlagTex.image, 10, 14, 220, 132);
+    bc.drawImage(azFlagTex.image, 750, 14, 264, 132);
+    bc.fillStyle = "#e30a17"; bc.textAlign = "center"; bc.textBaseline = "middle";
+    fitText(bc, "BİR MİLLƏT, İKİ DÖVLƏT", 800, 64, 540); bc.fillText("BİR MİLLƏT, İKİ DÖVLƏT", 512, 84);
+    const bnTex = new THREE.CanvasTexture(bnCv);
+    bnTex.colorSpace = THREE.SRGBColorSpace;
+    const bnMat = new THREE.MeshStandardMaterial({ map: bnTex, side: THREE.DoubleSide, roughness: .8 });
+    planeGroups.forEach((g, i) => {
+      for (const z of [-.635, .635]) {
+        const r = z < 0 ? Math.PI : 0;
+        for (const [x, m] of [[-1.7, trMat], [-2.9, azMat]]) {
+          const d = new THREE.Mesh(new THREE.PlaneGeometry(1, .6), m);
+          d.position.set(x, .12, z); d.rotation.y = r;
+          g.add(d);
+        }
+      }
+      poleFlag(g, 2.6, .55, 0, i % 2 ? azMat : trMat, .8, .7);
+      if (i === 0) return;   // apronda bekleyen uçak pankart çekmez
+      const rope = new THREE.Mesh(new THREE.BoxGeometry(5, .03, .03), M.ink);
+      rope.position.set(-8.6, -.2, 0);
+      g.add(rope);
+      const banner = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.4).translate(-4.5, 0, 0), bnMat);
+      banner.position.set(-11.1, -.4, 0);
+      g.add(banner);
+      wavers.push({ f: banner, ph: i, amp: .08 });
+    });
+    anim.push((dt, t) => {
+      for (const w of wavers) w.f.rotation.y = Math.sin(t * 2.4 + w.ph) * (w.amp ?? .3);
+      if ((vehCheckT -= dt) <= 0) { vehCheckT = 1.5; for (const v of vehicles) if (!vehFlagged.has(v)) flagVehicle(v); }
+    });
+  }
+
   function setMusic(on, text) {
     onMusic = !!on;
     if (bakuTag) bakuTag.textContent = text;

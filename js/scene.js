@@ -555,7 +555,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     const pin = makePin(c, s, pinY);
     pin.position.set(0, pinY, 0);
     g.add(pin);
-    companies.set(c.id, { lot, group: g, wallMat, height: pinY, roof: top, pin: pin.element.firstChild, sector: s });
+    companies.set(c.id, { lot, group: g, wallMat, height: pinY, roof: top, pin: pin.element.firstChild, sector: s, dims: { W, D, H } });
   }
 
   function makePin(c, s, y) {
@@ -1052,6 +1052,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const sunex = data.companies.find(c => c.id === "sunexpress");
   const avi = districts.find(d => d.s.id === "avi");
   const RWY = { x: avi ? avi.cx : 0, z: -52, len: 150 };
+  const planeGroups = [];   // ilki apronda bekleyen uçak; Azerbaycan sayfasında extras bayrak ekler
   const GEAR_Y = 1.95;   // pistteyken gövde merkezinin yerden yüksekliği (uçak ölçeği dahil)
   const planes = [];
   const navRed = new THREE.MeshStandardMaterial({ color: 0x7a2020, emissive: 0xff3b30, emissiveIntensity: 0 });
@@ -1090,6 +1091,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: .16, bevelEnabled: false }).translate(0, .45, -.08);
     function planeMesh() {
       const g = new THREE.Group();
+      planeGroups.push(g);
       part(g, new THREE.CylinderGeometry(.62, .62, 7.6, 18).rotateZ(Math.PI / 2), fuse, 0, 0, 0);
       part(g, new THREE.SphereGeometry(.62, 18, 12), fuse, 3.8, 0, 0).scale.set(1.7, 1, 1);
       part(g, new THREE.ConeGeometry(.62, 1.9, 18).rotateZ(Math.PI / 2), fuse, -4.75, .12, 0).scale.set(1, .8, 1);
@@ -1413,6 +1415,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const extras = buildExtras({
     world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagMatAlt, flagTex,
+    planeGroups, vehicles,
     crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent: notify, leadX: leadLot.x, theme, themeInfo, summit,
     selectSummit: () => select("summit", "summit", true),
     selectBaku: () => select("baku", "baku", true),
