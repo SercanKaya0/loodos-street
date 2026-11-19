@@ -10,7 +10,7 @@ import re
 import sys
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else "."
-THEMES = [("portugal", "pt", "Loodos Street · Portugal")]
+THEMES = [("portugal", "pt", "Loodos Street · Portugal"), ("azerbaycan", "az", "Loodos Street · Azərbaycan")]
 
 src = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
 for folder, theme, title in THEMES:

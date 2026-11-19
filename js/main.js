@@ -5,7 +5,7 @@ import { t, lang, setLang, localData, locale, prefs, translateDom } from "./i18n
 import { createSiren } from "./siren.js";
 
 const D = localData();
-// Tema sayfası: /portugal/ (tools/pages.py üretir) ya da yerelde ?theme=pt
+// Tema sayfası: /portugal/, /azerbaycan/ (tools/pages.py üretir) ya da yerelde ?theme=pt / ?theme=az
 const THEME = document.querySelector('meta[name="street-theme"]')?.content || new URLSearchParams(location.search).get("theme") || "";
 // Web Summit 2026 (yalnız /portugal/). meetUrl: "gelin tanışalım" linki; boşken buton gizlenir.
 const SUMMIT = { meetUrl: "", catalogUrl: "https://playground.loodos.com/" };
@@ -13,7 +13,34 @@ const SUMMIT = { meetUrl: "", catalogUrl: "https://playground.loodos.com/" };
 const anthem = THEME === "pt" ? Object.assign(new Audio("assets/audio/a-portuguesa.m4a"), { volume: .15, preload: "none" }) : null;
 let anthemPlayed = false;
 function playAnthem() { if (anthem && siren.enabled) { anthem.currentTime = 0; anthem.play().catch(() => {}); anthemPlayed = true; } }
-const THEME_INFO = { pt: { big: "Olá, Portugal!", line: "Bem-vindos à Loodos Street", small: "Loodos 🇹🇷 ❤ 🇵🇹" } }[THEME] || null;
+const THEME_INFO = {
+  pt: { big: "Olá, Portugal!", line: "Bem-vindos à Loodos Street", small: "Loodos 🇹🇷 ❤ 🇵🇹" },
+  az: { big: "Pioneer!", line: "IDDA × Loodos · Bakı", small: "Bir millət, iki dövlət 🇹🇷 ❤ 🇦🇿" },
+}[THEME] || null;
+// Azerbaycan sayfası: "Çırpınırdı Karadeniz" (Azerin, TRT Avaz'ın YouTube kaydı) gömülü oynatıcıyla, yalnız istenince çalar.
+// Kayıt indirilmez; YouTube'un kendi oynatıcısı kullanılır. Durdurunca oynatıcı kaldırılır.
+const SONG = { id: "PUcNcS9JUso", sec: 210 };
+const music = { on: false, timer: 0 };
+function setSong(on) {
+  if (THEME !== "az" || on === music.on) return;
+  music.on = on;
+  clearTimeout(music.timer);
+  $("#azPlayer")?.remove();
+  if (on) {
+    const box = document.createElement("div");
+    box.id = "azPlayer";
+    box.className = "az-player";
+    box.innerHTML = `<div class="az-player-head"><span class="az-eq"><i></i><i></i><i></i></span><b>Çırpınırdı Karadeniz</b><small>Azerin</small>
+      <button class="icon-btn" data-song="stop" aria-label="${esc(t("az.stop"))}" title="${esc(t("az.stop"))}"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <iframe src="https://www.youtube-nocookie.com/embed/${SONG.id}?autoplay=1&rel=0&playsinline=1&modestbranding=1" title="Çırpınırdı Karadeniz · Azerin"
+        allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>`;
+    box.querySelector("[data-song=stop]").addEventListener("click", () => setSong(false));
+    app.appendChild(box);
+    music.timer = setTimeout(() => setSong(false), SONG.sec * 1000);   // şarkı bitince oynatıcı kapanır
+  }
+  street.setMusic?.(on, t(on ? "az.playing" : "az.tap"));
+  document.querySelectorAll("[data-act=song]").forEach(b => { b.textContent = t(on ? "az.stop" : "az.play"); });
+}
 const $ = s => document.querySelector(s);
 const app = $("#app");
 const bySector = id => D.sectors.find(s => s.id === id);
@@ -329,6 +356,22 @@ function showSummit() {
     </div>`);
   panel.querySelector("[data-act=anthem]")?.addEventListener("click", () => { if (!siren.enabled) { siren.setEnabled(true); prefs.set("ls.sound", "on"); syncSound(); } playAnthem(); });
   panel.querySelector("[data-act=hulki]")?.addEventListener("click", () => street.select("summit", "summit"));
+  renderKpis();
+}
+
+function showBaku() {
+  ctx = { kind: "baku" };
+  setJourneyFor(null);
+  setHash("baku");
+  openPanel(`${head('<span class="p-logo txt" style="--c:#0092b8">🇦🇿</span>', esc(t("az.kicker")), esc(t("az.title")), esc(t("az.sub")))}
+    <div class="p-body">
+      <p class="lead">${esc(t("az.lead"))}</p>
+      <p>${esc(t("az.thanks"))}</p>
+      <button class="cta" data-act="song">${esc(t(music.on ? "az.stop" : "az.play"))}</button>
+      <button class="cta ghost" data-act="confetti">${esc(t("az.confetti"))}</button>
+    </div>`);
+  panel.querySelector("[data-act=song]").addEventListener("click", () => setSong(!music.on));
+  panel.querySelector("[data-act=confetti]").addEventListener("click", () => street.celebrate?.());
   renderKpis();
 }
 
@@ -772,6 +815,7 @@ async function boot() {
         else if (sel.kind === "ambulance") showAmbulance();
         else if (sel.kind === "lead") showLead();
         else if (sel.kind === "summit") showSummit();
+        else if (sel.kind === "baku") showBaku();
         else if (sel.kind === "hq") showHQ();
         else if (sel.kind === "sector") showSector(sel.id);
       },
@@ -784,6 +828,7 @@ async function boot() {
     return finishBoot(false);
   }
   applyEvent();
+  street.setMusic?.(false, t("az.tap"));
   syncLabels();
   street.setClock(simHours());
   street.setLead(lead.prods);
@@ -885,7 +930,7 @@ function wireUi() {
     else if (act === "sound") {
       siren.setEnabled(!siren.enabled);
       prefs.set("ls.sound", siren.enabled ? "on" : "off");
-      if (!siren.enabled) anthem?.pause();
+      if (!siren.enabled) { anthem?.pause(); setSong(false); }
       syncSound();
     }
     else if (act === "home") goHome();
@@ -900,6 +945,7 @@ function wireUi() {
       else if (ctx.kind === "ambulance") street.select("ambulance", "hotfix");
       else if (ctx.kind === "lead") street.select("lead", "lead");
       else if (ctx.kind === "summit") street.select("summit", "summit");
+      else if (ctx.kind === "baku") street.select("baku", "baku");
       else if (ctx.kind === "sector") street.focusSector(ctx.id);
       else street.select("hq", "loodos");
     }
@@ -915,6 +961,11 @@ function finishBoot(is3d) {
     // Portekiz sayfası Web Summit davetiyle açılır
     if (is3d) setTimeout(() => { street.select("summit", "summit"); showSummit(); }, h ? 0 : 900);
     else showSummit();
+  }
+  else if (THEME === "az" && (h === "baku" || !h)) {
+    // Azerbaycan sayfası Qız Qalası ve IDDA haberiyle açılır; şarkı yalnız istenince çalar
+    if (is3d) setTimeout(() => { street.select("baku", "baku"); showBaku(); street.celebrate?.(); }, h ? 0 : 900);
+    else showBaku();
   }
   else if (byCompany(h)) openCompany(h);
   else if (h.startsWith("mahalle/") && bySector(h.slice(8))) focusSector(h.slice(8));

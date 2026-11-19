@@ -45,6 +45,7 @@ function glowTexture(stretch = 1) {
 
 export async function createStreet({ el, data, night: initialNight = 0, weather: initialWeather = "clear", theme = "", themeInfo = null, siren, onSelect, onEvent }) {
   const PT = theme === "pt";   // /portugal/ sayfası: azulejo duvarlar, calçada kaldırımlar, sarı tramvaylar (js/extras.js bayrak ve süsleri ekler)
+  const AZ = theme === "az";   // /azerbaycan/ sayfası: Türk ve Azerbaycan bayrakları, konfeti, Qız Qalası (hepsi js/extras.js)
   /* ---------- Renderer, kamera, kontroller ---------- */
   // Dokunmatik/dar ekranda GPU belleğini koru: düşük piksel oranı, küçük gölge haritası, daha az yaya
   const LITE = matchMedia("(pointer: coarse)").matches || innerWidth < 860;
@@ -666,7 +667,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const lastD = districts[districts.length - 1];
   const leadLot = { c: { id: "lead", name: tt("lead.name"), projects: [{ prods: [] }] }, s: { id: "lead", name: tt("lead.kicker"), color: "#1ab0ba" }, x: lastD.x1 + 12, side: -1 };
   lots.push(leadLot);
-  // Web Summit sahnesi (yalnız /portugal/): sokağın doğu ucunda, kuzey tarafta, yola bakar
+  // Web Summit sahnesi (yalnız /portugal/) ve Qız Qalası (yalnız /azerbaycan/): sokağın doğu ucunda, kuzey tarafta, yola bakar
   const summit = { x: leadLot.x + 19, z: -LOT_Z - 1 };
   // Olaylar etki kulesinin sayaçlarından geçip arayüze gider (extras sahne kurulduktan sonra bağlanır)
   let extrasRef = null;
@@ -897,6 +898,9 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   })();
   const flagMat = new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide, roughness: .75, emissive: 0xffffff, emissiveMap: flagTex, emissiveIntensity: 0 });
   signMats.push(flagMat);
+  // Direk bayrakları ikişer malzemeye bölünür: Azerbaycan sayfasında biri Türk, biri Azerbaycan bayrağı taşır
+  const flagMatAlt = flagMat.clone();
+  signMats.push(flagMatAlt);
   const flagGeo = new THREE.PlaneGeometry(2.4, 1.42).translate(1.2, 0, 0);
   const flags = [];
   const wirePts = [];
@@ -910,7 +914,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
         inst.arm.push(local(world, x, POLE_H - .9, z, .16, .16, 2.2));
         inst.bulb.push(local(world, x, POLE_H, z, .34, .22, .34));
         inst.pole.push(local(world, x, POLE_H, z, .08, 2.1, .08));   // bayrak gönderi
-        const f = new THREE.Mesh(flagGeo, flagMat);
+        const f = new THREE.Mesh(flagGeo, flags.length % 2 ? flagMatAlt : flagMat);
         f.position.set(x + .04, POLE_H + 1.4, z);
         f.castShadow = true;
         world.add(f);
@@ -1408,9 +1412,10 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   /* ---------- Müşteri detayları, özel günler, şehir hayatı (js/extras.js) ---------- */
   const extras = buildExtras({
     world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
-    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagTex,
+    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagMatAlt, flagTex,
     crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent: notify, leadX: leadLot.x, theme, themeInfo, summit,
     selectSummit: () => select("summit", "summit", true),
+    selectBaku: () => select("baku", "baku", true),
     selectLead: () => select("lead", "lead", true),
     selectHQ: () => select("hq", "loodos", true),
     laneBusy: () => amb.state !== "idle",   // ambulans ve itfaiye aynı orta şeridi kullanır, sırayla çıkar
@@ -1515,11 +1520,11 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       selRing.visible = true;
       const zoom = zoomFor(.95, 1.6);
       flyTo(framed(groundOf(new THREE.Vector3(hqX, 13, -12)), zoom), zoom);
-    } else if (kind === "summit") {
+    } else if (kind === "summit" || kind === "baku") {
       selRing.position.set(summit.x, .12, summit.z);
       selRing.visible = true;
-      const zoom = zoomFor(1.5, 2.3);
-      flyTo(framed(groundOf(new THREE.Vector3(summit.x, 4, summit.z + 3)), zoom), zoom);
+      const zoom = kind === "baku" ? zoomFor(1.1, 1.8) : zoomFor(1.5, 2.3);
+      flyTo(framed(groundOf(new THREE.Vector3(summit.x, kind === "baku" ? 8 : 4, summit.z + 3)), zoom), zoom);
     } else if (kind === "lead") {
       selRing.position.set(leadLot.x, .12, -LOT_Z);
       selRing.visible = true;
@@ -1722,6 +1727,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     { kind: "lead", id: "lead", name: tt("lead.name"), x: leadLot.x, z: -LOT_Z, hx: 5.5, hz: 5.6 },
     { kind: "loot", id: "loot", name: "Loodos LOOT", x: leadLot.x, z: LOT_Z, hx: 4.3, hz: 3.5 },
     ...(PT ? [{ kind: "summit", id: "summit", name: "Web Summit 2026", x: summit.x, z: summit.z - 1.5, hx: 5, hz: 2.5 }] : []),
+    ...(AZ ? [{ kind: "baku", id: "baku", name: "Qız Qalası", x: summit.x, z: summit.z, hx: 4, hz: 4 }] : []),
   ];
   const WALK_KEYS = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", "shift"];
   addEventListener("keydown", e => {
@@ -1964,6 +1970,8 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     districts, vehicles, hqX,
     select, highlight, focusSector, home, setNight, setWeather, setClock,
     setEvent: (kind, info) => extras.setEvent(kind, info),
+    setMusic: (on, text) => extras.setMusic(on, text),
+    celebrate: () => extras.celebrate(),
     setLabelsAll(on) { labelsAll = !!on; },
     startWalk, stopWalk,
     isWalking: () => walker.on,

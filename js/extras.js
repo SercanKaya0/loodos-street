@@ -9,9 +9,10 @@ const clamp01 = x => Math.min(1, Math.max(0, x));
 
 export function buildExtras(k) {
   const { world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
-    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagTex, crowns, data,
-    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany, selectLead, selectHQ, leadX, theme, themeInfo, summit, selectSummit } = k;
+    LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos, signMats, wordTexture, glowTex, flagMat, flagMatAlt, flagTex, crowns, data,
+    pickables, LITE, rand, pick, tt, onEvent, laneBusy, selectCompany, selectLead, selectHQ, leadX, theme, themeInfo, summit, selectSummit, selectBaku } = k;
   const PT = theme === "pt";   // /portugal/ sayfası
+  const AZ = theme === "az";   // /azerbaycan/ sayfası
   const anim = [];            // her karede (dt, t) ile çağrılır
   const nightFx = [];         // applyNight'ta (lit) ile çağrılır
   const flatGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -675,8 +676,9 @@ export function buildExtras(k) {
   hqDress.visible = false;
   hq.add(hqDress);
   const sideFlagMat = new THREE.MeshStandardMaterial({ map: trFlagTex, side: THREE.DoubleSide, roughness: .8 });
+  const sideFlagMatAlt = sideFlagMat.clone();
   for (const s of [-1, 1]) {
-    const f = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 4.3), sideFlagMat);
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 4.3), s > 0 ? sideFlagMatAlt : sideFlagMat);
     f.position.set(s * 6.62, 12, 0);
     f.rotation.set(0, s * Math.PI / 2, Math.PI / 2);
     hqDress.add(f);
@@ -722,27 +724,33 @@ export function buildExtras(k) {
   }
   let holiday = null;   // dijital panolar da her ikinci mesajda bunu gösterir
   function drawDress(kind, info) {
-    const national = kind === "national", pt = kind === "pt";
-    const bg = national ? "#e30a17" : pt ? "#046a38" : "#0c1a3a", accent = national ? "#ffffff" : pt ? "#ffe900" : "#ffd36b";
+    const national = kind === "national", pt = kind === "pt", az = kind === "az";
+    const bg = national ? "#e30a17" : pt ? "#046a38" : az ? "#0092b8" : "#0c1a3a", accent = national || az ? "#ffffff" : pt ? "#ffe900" : "#ffd36b";
     let c = boardCv.getContext("2d");
     c.fillStyle = bg; c.fillRect(0, 0, 1024, 384);
     if (pt) { c.fillStyle = "#da291c"; c.fillRect(300, 0, 724, 384); }
+    if (az) {   // solda Türk bayrağı, sağda Azerbaycan'ın üç rengi
+      c.fillStyle = "#e30a17"; c.fillRect(0, 0, 300, 384);
+      drawCrescent(c, 120, 176, 80, "#e30a17");
+      for (const [i, col] of ["#00b5e2", "#ef3340", "#509e2f"].entries()) { c.fillStyle = col; c.fillRect(300, i * 128, 724, 128); }
+      c.fillStyle = "rgba(0,0,0,.22)"; c.fillRect(300, 0, 724, 384);
+    }
     c.fillStyle = accent; c.globalAlpha = .9; c.fillRect(0, 352, 1024, 32); c.globalAlpha = 1;
     if (national) drawCrescent(c, 150, 176, 104, bg);
     else if (pt) drawPtEmblem(c, 300, 176, 96);
     else { c.fillStyle = "#ffd36b"; for (let i = 0; i < 40; i++) { c.globalAlpha = Math.random() * .8 + .2; c.fillRect(Math.random() * 1024, Math.random() * 340, 4, 4); } c.globalAlpha = 1; }
-    const left = national ? 330 : pt ? 420 : 60, w = 1024 - left - 50;
+    const left = national ? 330 : pt ? 420 : az ? 340 : 60, w = 1024 - left - 50;
     c.fillStyle = accent; c.textBaseline = "alphabetic"; c.textAlign = "left";
     fitText(c, info.big, 800, 120, w); c.fillText(info.big, left, 150);
     c.fillStyle = "#ffffff";
     fitText(c, info.line, 700, 52, w); c.fillText(info.line, left, 228);
     fitText(c, info.small, 600, 36, w); c.globalAlpha = .85; c.fillText(info.small, left, 290); c.globalAlpha = 1;
-    c.font = `700 30px "Red Hat Display"`; c.textAlign = "right"; c.fillStyle = national ? "#e30a17" : pt ? "#046a38" : "#0c1a3a"; c.fillText("loodos", 1000, 378);
+    c.font = `700 30px "Red Hat Display"`; c.textAlign = "right"; c.fillStyle = national ? "#e30a17" : pt ? "#046a38" : az ? "#ffffff" : "#0c1a3a"; c.fillText("loodos", 1000, 378);
     boardTex.needsUpdate = true;
     c = bandCv.getContext("2d");
     c.fillStyle = bg; c.fillRect(0, 0, 1024, 128);
     c.fillStyle = "#ffffff"; c.textAlign = "center"; c.textBaseline = "middle";
-    const txt = `${info.big} · ${info.small}`.toLocaleUpperCase(pt ? "pt" : document.documentElement.lang === "en" ? "en" : "tr");
+    const txt = `${info.big} · ${info.small}`.toLocaleUpperCase(pt ? "pt" : az ? "az" : document.documentElement.lang === "en" ? "en" : "tr");
     fitText(c, txt, 800, 84, 980); c.fillText(txt, 512, 68);
     bandTex.needsUpdate = true;
     holiday = { big: info.big, small: info.line };
@@ -776,6 +784,24 @@ export function buildExtras(k) {
     return tex;
   })();
   DRESS_COLORS.pt = [0x046a38, 0xda291c, 0xffe900];
+
+  // Azerbaycan bayrağı: mavi, kırmızı, yeşil; kırmızı bantta beyaz hilal ve sekiz köşeli yıldız
+  const azFlagTex = (() => {
+    const cv = document.createElement("canvas");
+    cv.width = 320; cv.height = 160;
+    const c = cv.getContext("2d");
+    for (const [i, col] of ["#00b5e2", "#ef3340", "#509e2f"].entries()) { c.fillStyle = col; c.fillRect(0, i * 160 / 3, 320, 160 / 3 + 1); }
+    c.fillStyle = "#ffffff"; c.beginPath(); c.arc(150, 80, 20, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#ef3340"; c.beginPath(); c.arc(155, 80, 16.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#ffffff"; c.beginPath();
+    for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 - Math.PI / 2, r = i % 2 ? 4.6 : 10; c.lineTo(178 + r * Math.cos(a), 80 + r * Math.sin(a)); }
+    c.closePath(); c.fill();
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  })();
+  DRESS_COLORS.az = [0xe30a17, 0xffffff, 0x00b5e2, 0xef3340, 0x509e2f];
+  PALETTE.az = [0xe30a17, 0xffffff, 0x00b5e2, 0x509e2f, 0xffd36b];
 
   // Barcelos horozu: Portekiz sayfasında meydanda, kaidesinin üstünde
   if (PT) {
@@ -811,6 +837,8 @@ export function buildExtras(k) {
 
   // Tüm binaların çatısında küçük, dalgalanan bayraklar (bayramda Türk, Portekiz sayfasında Portekiz bayrağı)
   const roofFlagMat = new THREE.MeshStandardMaterial({ map: ptFlagTex, side: THREE.DoubleSide, roughness: .75 });
+  const roofFlagMatAlt = roofFlagMat.clone();
+  const roofTops = [];   // konfeti buradan patlar
   const roofFlags = new THREE.Group();
   roofFlags.visible = false;
   {
@@ -820,7 +848,8 @@ export function buildExtras(k) {
       const g = new THREE.Group();
       g.position.copy(p);
       box(g, .06, 2.2, .06, M.ink, 0, 0, 0, false);
-      const f = new THREE.Mesh(geo, roofFlagMat);
+      const f = new THREE.Mesh(geo, roofTops.length % 2 ? roofFlagMatAlt : roofFlagMat);
+      roofTops.push(c.group.localToWorld(new THREE.Vector3(0, c.roof + .5, 0)));
       f.position.y = 1.85;
       g.add(f);
       roofFlags.add(g);
@@ -923,25 +952,215 @@ export function buildExtras(k) {
     });
   }
 
+
+  // Konfeti (yalnız /azerbaycan/): çatılardan ve sokaktan patlar, dönerek süzülür, yere düşüp biraz kalır
+  const CF = LITE ? 900 : 2200;
+  const confetti = AZ && (() => {
+    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(.34, .2), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), CF);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.frustumCulled = false;
+    const P = new Float32Array(CF * 3), V = new Float32Array(CF * 3), R = new Float32Array(CF * 3), S = new Float32Array(CF * 3), L = new Float32Array(CF);
+    const COLS = [0xe30a17, 0xffffff, 0x00b5e2, 0xef3340, 0x509e2f, 0xffd36b];
+    const col = new THREE.Color(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), eu = new THREE.Euler(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+    const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (let i = 0; i < CF; i++) { mesh.setColorAt(i, col.setHex(COLS[i % COLS.length])); mesh.setMatrixAt(i, hidden); }
+    world.add(mesh);
+    let cur = 0, alive = 0;
+    return {
+      burst(x, y, z, n = 80, up = 10) {
+        for (let k = 0; k < n; k++) {
+          const j = cur; cur = (cur + 1) % CF;
+          const a = Math.random() * Math.PI * 2, sp = rand(1.5, 6);
+          P.set([x, y, z], j * 3);
+          V.set([Math.cos(a) * sp, rand(up * .5, up), Math.sin(a) * sp], j * 3);
+          R.set([rand(0, 6), rand(0, 6), rand(0, 6)], j * 3);
+          S.set([rand(-9, 9), rand(-9, 9), rand(-9, 9)], j * 3);
+          L[j] = rand(7, 10);
+        }
+        alive = 1;
+      },
+      step(dt, t) {
+        if (!alive) return;
+        let n = 0;
+        const drag = Math.max(0, 1 - dt * 2.4);
+        one.setScalar(THREE.MathUtils.clamp(1.8 / camera.zoom, 1, 4));   // uzaktan bakınca da görünsün
+        for (let i = 0; i < CF; i++) {
+          if (L[i] <= 0) continue;
+          const j = i * 3;
+          if ((L[i] -= dt) <= 0) { mesh.setMatrixAt(i, hidden); continue; }
+          n++;
+          if (P[j + 1] > .04) {
+            V[j + 1] -= 9 * dt;
+            V[j] *= drag; V[j + 1] *= drag; V[j + 2] *= drag;
+            P[j] += (V[j] + Math.sin(t * 3 + i) * .8) * dt; P[j + 1] += V[j + 1] * dt; P[j + 2] += (V[j + 2] + Math.cos(t * 2.5 + i) * .8) * dt;
+            R[j] += S[j] * dt; R[j + 1] += S[j + 1] * dt; R[j + 2] += S[j + 2] * dt;
+          } else {   // yerde yatar, ömrünün sonunda kaybolur
+            P[j + 1] = .04; R[j] = -Math.PI / 2; R[j + 1] = 0;
+            L[i] = Math.min(L[i], 4);
+          }
+          eu.set(R[j], R[j + 1], R[j + 2]);
+          m4.compose(v.set(P[j], P[j + 1], P[j + 2]), q.setFromEuler(eu), one);
+          mesh.setMatrixAt(i, m4);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        alive = n;
+      },
+    };
+  })();
+  let confettiT = 1;
+  // Ekranda görünen çatılardan biri seçilir; yoksa sokakta rastgele bir nokta
+  function confettiTick(dt) {
+    if (!confetti || (confettiT -= dt) > 0) return;
+    const half = VIEW * el.clientWidth / el.clientHeight / 2 / camera.zoom;
+    confettiT = rand(.35, .9) / THREE.MathUtils.clamp(half / 40, 1, 4);   // geniş görünümde daha sık
+    const near = roofTops.filter(p => Math.abs(p.x - controls.target.x) < half * 1.1);
+    if (near.length && Math.random() < .7) { const p = pick(near); confetti.burst(p.x, p.y, p.z, LITE ? 50 : 80); }
+    else confetti.burst(controls.target.x + rand(-half, half) * .9, 1.5, rand(-6, 6), LITE ? 40 : 60, 13);
+  }
+
+  // Qız Qalası (yalnız /azerbaycan/): Bakü'nün simgesi; dokununca "Çırpınırdı Karadeniz" çalar
+  let bakuTag = null, onMusic = false;
+  const bakuNotes = [];
+  if (AZ && summit) {
+    const g = new THREE.Group();
+    g.position.set(summit.x, 0, summit.z);
+    world.add(g);
+    plane(g, 18, 14, mat(0xd9c9a8, { roughness: 1 }), 0, .045, 0);
+    // Taş doku: yatay sıralar, hafif ton farkları
+    const st = canvasTex(512, 512);
+    st.ctx.fillStyle = "#cbb084"; st.ctx.fillRect(0, 0, 512, 512);
+    for (let y = 0; y < 512; y += 16) for (let x = (y / 16) % 2 * 20; x < 512; x += 40) {
+      st.ctx.fillStyle = `hsl(36, ${28 + Math.random() * 12}%, ${58 + Math.random() * 12}%)`;
+      st.ctx.fillRect(x + 1, y + 1, 38, 14);
+    }
+    st.tex.wrapS = st.tex.wrapT = THREE.RepeatWrapping;
+    st.tex.repeat.set(3, 2.5);
+    st.tex.needsUpdate = true;
+    const stone = new THREE.MeshStandardMaterial({ map: st.tex, roughness: .95 });
+    const H = 15;
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 3.5, H, 40), stone);
+    tower.position.set(0, H / 2, -1.5); tower.castShadow = tower.receiveShadow = true;
+    g.add(tower);
+    // Yola bakan çıkıntı (kulenin karakteristik payandası)
+    const butt = new THREE.Mesh(new THREE.BoxGeometry(2.6, H - 1, 2.4), stone);
+    butt.position.set(0, (H - 1) / 2, 1.6); butt.castShadow = true;
+    g.add(butt);
+    // Tepede taşkın taş kuşak ve mazgallar
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(3.35, 3.2, .7, 40), stone);
+    crown.position.set(0, H - .1, -1.5); g.add(crown);
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * Math.PI * 2;
+      box(g, .55, .6, .5, stone, Math.cos(a) * 3.05, H + .25, -1.5 + Math.sin(a) * 3.05, false).rotation.y = -a;
+    }
+    // Dar pencereler ve kapı
+    const dark = mat(0x2a2118, { roughness: 1 });
+    for (const y of [4.5, 8, 11.5]) box(g, .35, .9, .1, dark, 0, y, 2.82, false);
+    box(g, 1.1, 1.8, .1, dark, 0, 0, 2.82, false);
+    // Tepede iki gönder: Türk ve Azerbaycan bayrakları
+    const bigGeo = new THREE.PlaneGeometry(3.2, 1.9).translate(1.6, 0, 0);
+    const flagsUp = [];
+    for (const [x, tex] of [[-1.2, trFlagTex], [1.2, azFlagTex]]) {
+      cyl(g, .07, .07, 4.4, M.ink, x, H + .3, -1.5, 6);
+      const f = new THREE.Mesh(bigGeo, new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: .8 }));
+      f.position.set(x, H + 3.6, -1.5);
+      g.add(f);
+      flagsUp.push(f);
+    }
+    // Önde iki büyük gönder
+    for (const [x, tex] of [[-6.5, trFlagTex], [6.5, azFlagTex]]) {
+      cyl(g, .1, .12, 9, mat(0xc8d0d4, { roughness: .3, metalness: .6 }), x, 0, 3.5, 8);
+      const f = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 2.6).translate(2.2 * Math.sign(-x), 0, 0), new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: .8 }));
+      f.position.set(x, 7.6, 3.5);
+      g.add(f);
+      flagsUp.push(f);
+    }
+    // Pioneer tabelası
+    const pl = canvasTex(1024, 384);
+    const pc = pl.ctx;
+    for (const [i, col] of ["#00b5e2", "#ef3340", "#509e2f"].entries()) { pc.fillStyle = col; pc.fillRect(0, i * 128, 1024, 128); }
+    pc.fillStyle = "rgba(10,14,20,.55)"; pc.fillRect(0, 0, 1024, 384);
+    pc.fillStyle = "#ffffff"; pc.textAlign = "center"; pc.textBaseline = "alphabetic";
+    pc.font = `800 130px "Red Hat Display"`; pc.fillText("PIONEER", 512, 160);
+    pc.font = `700 60px "Red Hat Display"`; pc.fillText("IDDA × Loodos", 512, 250);
+    pc.font = `600 40px "Red Hat Display"`; pc.globalAlpha = .9; pc.fillText("Bakı · 2026 · Bir millət, iki dövlət", 512, 330); pc.globalAlpha = 1;
+    pl.tex.needsUpdate = true;
+    const plFace = new THREE.MeshStandardMaterial({ map: pl.tex, emissive: 0xffffff, emissiveMap: pl.tex, emissiveIntensity: .5, roughness: .5 });
+    const plaque = new THREE.Mesh(BOX, [M.ink, M.ink, M.ink, M.ink, plFace, M.ink]);
+    plaque.scale.set(6.4, 2.4, .25); plaque.position.set(0, 2.2, 5.6);
+    g.add(plaque);
+    for (const x of [-2.9, 2.9]) box(g, .2, 1, .2, M.ink, x, 0, 5.6, false);
+    nightFx.push(lit => { plFace.emissiveIntensity = .5 + .5 * lit; });
+    g.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "baku", id: "baku" }; });
+    pickables.push(g);
+    pinLabel(g, H + 6.5, `<span class="pin-logo" style="--c:#0092b8">🇦🇿</span><span class="pin-name">Qız Qalası<small>Bakı</small></span>`, "#ef3340", () => selectBaku?.());
+    // Kulenin üstünde: şarkıya davet ya da çalarken notalar
+    const wrap = document.createElement("div");
+    wrap.className = "lbl";
+    bakuTag = document.createElement("div");
+    bakuTag.className = "bubble show";
+    wrap.appendChild(bakuTag);
+    const tagObj = new CSS2DObject(wrap);
+    tagObj.position.set(0, H + 4.6, 3);
+    g.add(tagObj);
+    for (let i = 0; i < 6; i++) {
+      const w = document.createElement("div");
+      w.className = "lbl";
+      const n = document.createElement("div");
+      n.className = "az-note";
+      n.textContent = i % 2 ? "♪" : "♫";
+      w.appendChild(n);
+      const o = new CSS2DObject(w);
+      o.visible = false;
+      g.add(o);
+      bakuNotes.push({ o, ph: i / 6 });
+    }
+    anim.push((dt, t) => {
+      flagsUp.forEach((f, i) => { f.rotation.y = Math.sin(t * 1.8 + i) * .25; });
+      for (const nt of bakuNotes) {
+        nt.o.visible = onMusic;
+        if (!onMusic) continue;
+        const k = (t * .25 + nt.ph) % 1, a = nt.ph * Math.PI * 2 + t * .4;
+        nt.o.position.set(Math.cos(a) * 4.2, 3 + k * 13, -1.5 + Math.sin(a) * 4.2);
+        nt.o.element.style.opacity = String(Math.sin(Math.PI * k));
+      }
+    });
+  }
+  function setMusic(on, text) {
+    onMusic = !!on;
+    if (bakuTag) bakuTag.textContent = text;
+    if (on && confetti && summit) celebrate(summit.x, summit.z);
+  }
+  function celebrate(x = controls.target.x, z = controls.target.z) {
+    if (!confetti) return;
+    for (let i = 0; i < 6; i++) setTimeout(() => confetti.burst(x + rand(-5, 5), rand(6, 16), z + rand(-4, 4), LITE ? 60 : 110, 12), i * 160);
+  }
+
   let event = "none";
   function setEvent(kind, info) {
     // Portekiz sayfasında süsleme her zaman Portekiz'e özel (yılbaşı ışıkları yine yanar)
     if (PT && kind !== "newyear") { kind = "pt"; info = themeInfo; }
+    // Azerbaycan sayfasında her yerde Türk ve Azerbaycan bayrakları yan yana
+    if (AZ && kind !== "newyear") { kind = "az"; info = themeInfo; }
     event = kind;
-    const national = kind === "national", newyear = kind === "newyear", pt = kind === "pt";
-    const flagTexNow = PT ? ptFlagTex : national ? trFlagTex : flagTex;
+    const national = kind === "national", newyear = kind === "newyear", pt = kind === "pt", az = kind === "az";
+    const flagTexNow = PT ? ptFlagTex : AZ ? trFlagTex : national ? trFlagTex : flagTex;
     flagMat.map = flagMat.emissiveMap = flagTexNow;
-    hqFlag.material.map = hqFlag.material.emissiveMap = sideFlagMat.map = PT ? ptFlagTex : trFlagTex;
-    hqFlag.visible = national || pt;
+    flagMatAlt.map = flagMatAlt.emissiveMap = AZ ? azFlagTex : flagTexNow;
+    hqFlag.material.map = hqFlag.material.emissiveMap = PT ? ptFlagTex : AZ ? azFlagTex : trFlagTex;
+    sideFlagMat.map = PT ? ptFlagTex : trFlagTex;
+    sideFlagMatAlt.map = PT ? ptFlagTex : AZ ? azFlagTex : trFlagTex;
+    hqFlag.visible = national || pt || az;
     roofFlagMat.map = PT ? ptFlagTex : trFlagTex;
-    roofFlags.visible = national || pt;
+    roofFlagMatAlt.map = PT ? ptFlagTex : AZ ? azFlagTex : trFlagTex;
+    for (const m of [flagMat, flagMatAlt, hqFlag.material, sideFlagMat, sideFlagMatAlt, roofFlagMat, roofFlagMatAlt]) m.needsUpdate = true;
+    roofFlags.visible = national || pt || az;
     treeLights.visible = newyear;
     xmas.visible = newyear;
     for (const f of fountain) f.visible = !newyear;
     // Giydirme
-    const dressed = (national || newyear || pt) && !!info;
+    const dressed = (national || newyear || pt || az) && !!info;
     dress.visible = board.visible = hqDress.visible = dressed;
-    for (const o of hqDress.children) if (o !== band) o.visible = national || pt;
+    for (const o of hqDress.children) if (o !== band) o.visible = national || pt || az;
     if (dressed) { paintPennants(kind); drawDress(kind, info); } else holiday = null;
   }
 
@@ -1681,9 +1900,10 @@ export function buildExtras(k) {
   function step(dt, t, { night, wx }) {
     for (const fn of anim) fn(dt, t);
     stepFire(dt, t);
+    if (confetti) { confettiTick(dt); confetti.step(dt, t); }
 
     // Havai fişek (bayram ve yılbaşı, alacakaranlıktan itibaren)
-    const fwOn = (event === "national" || event === "newyear") && lit > .3;
+    const fwOn = (event === "national" || event === "newyear" || event === "az") && lit > .3;
     if (fwOn && (fwNext -= dt) <= 0) {
       fwNext = rand(.6, 1.6);
       const half = VIEW * el.clientWidth / el.clientHeight / 2 / camera.zoom;
@@ -1762,5 +1982,5 @@ export function buildExtras(k) {
     }
   }
 
-  return { step, applyNight, setEvent, setLead, note, rollD20: () => k.rollD20?.(), seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
+  return { step, applyNight, setEvent, setLead, note, setMusic, celebrate, rollD20: () => k.rollD20?.(), seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
 }

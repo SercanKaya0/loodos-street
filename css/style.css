@@ -606,3 +606,22 @@ svg { display: block; }
 .fb-grid .p-logo { width: 44px; height: 44px; border-radius: 12px; }
 .fb-grid small { display: block; color: var(--muted); font-size: 12px; }
 @media (max-width: 860px) { .fallback, .app.has-panel .fallback { padding: 150px var(--gutter) 130px; } }
+
+/* Azerbaycan sayfası: şarkı oynatıcısı ve kulenin çevresinde dönen notalar */
+.az-player {
+  position: absolute; left: var(--gutter); bottom: 150px; z-index: 16; width: 300px; padding: 8px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); box-shadow: var(--shadow-lg);
+}
+.az-player-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px 4px; }
+.az-player-head b { font: 700 13px var(--f-display); color: var(--ink); }
+.az-player-head small { font: 500 12px var(--f-body); color: var(--muted); flex: 1; }
+.az-player-head .icon-btn { width: 30px; height: 30px; }
+.az-player iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 10px; background: #000; }
+.az-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.az-eq i { width: 3px; background: #ef3340; border-radius: 2px; animation: az-eq .9s ease-in-out infinite; }
+.az-eq i:nth-child(2) { background: #00b5e2; animation-delay: -.3s; }
+.az-eq i:nth-child(3) { background: #509e2f; animation-delay: -.6s; }
+@keyframes az-eq { 0%, 100% { height: 4px; } 50% { height: 14px; } }
+.az-note { font: 700 22px var(--f-display); color: #ef3340; text-shadow: 0 1px 6px rgba(0, 0, 0, .35); pointer-events: none; }
+.az-note:nth-child(1) { transform: translate(-50%, -50%); }
+@media (max-width: 760px) { .az-player { left: 8px; right: 8px; width: auto; top: 150px; bottom: auto; z-index: 30; } }
