@@ -1415,7 +1415,7 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
   const extras = buildExtras({
     world, scene, camera, controls, VIEW, el, box, cyl, plane, mat, M, BOX, carMesh, companies, parks, districts,
     LEN, X_MIN, X_MAX, LOT_Z, hqX, hq, fountain, walkSegments, plazaPos: plaza.position, signMats, wordTexture, glowTex, flagMat, flagMatAlt, flagTex,
-    planeGroups, vehicles,
+    planeGroups, vehicles, rwy: RWY,
     crowns: inst.crown, data, pickables, LITE, rand, pick, tt, onEvent: notify, leadX: leadLot.x, theme, themeInfo, summit,
     selectSummit: () => select("summit", "summit", true),
     selectBaku: () => select("baku", "baku", true),
@@ -1523,11 +1523,11 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
       selRing.visible = true;
       const zoom = zoomFor(.95, 1.6);
       flyTo(framed(groundOf(new THREE.Vector3(hqX, 13, -12)), zoom), zoom);
-    } else if (kind === "summit" || kind === "baku") {
+    } else if (kind === "summit" || kind === "baku" || kind === "signing") {
       selRing.position.set(summit.x, .12, summit.z);
       selRing.visible = true;
       const zoom = kind === "baku" ? zoomFor(1.1, 1.8) : zoomFor(1.5, 2.3);
-      flyTo(framed(groundOf(new THREE.Vector3(summit.x, kind === "baku" ? 8 : 4, summit.z + 3)), zoom), zoom);
+      flyTo(framed(groundOf(new THREE.Vector3(summit.x, kind === "baku" ? 8 : 4, summit.z + (kind === "signing" ? 5 : 3))), zoom), zoom);
     } else if (kind === "lead") {
       selRing.position.set(leadLot.x, .12, -LOT_Z);
       selRing.visible = true;
@@ -1974,6 +1974,9 @@ export async function createStreet({ el, data, night: initialNight = 0, weather:
     select, highlight, focusSector, home, setNight, setWeather, setClock,
     setEvent: (kind, info) => extras.setEvent(kind, info),
     setMusic: (on, text) => extras.setMusic(on, text),
+    sign: () => extras.sign?.(),
+    flyToBaku: () => extras.flyToBaku?.(),
+    setWall: (msgs, me) => extras.setWall?.(msgs, me),
     celebrate: () => extras.celebrate(),
     setLabelsAll(on) { labelsAll = !!on; },
     startWalk, stopWalk,

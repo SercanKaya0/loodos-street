@@ -20,6 +20,27 @@ const THEME_INFO = {
 // Azerbaycan sayfası: "Çırpınırdı Karadeniz" (Azerin, TRT Avaz'ın YouTube kaydı) gömülü oynatıcıyla, yalnız istenince çalar.
 // Kayıt indirilmez; YouTube'un kendi oynatıcısı kullanılır. Durdurunca oynatıcı kaldırılır.
 const SONG = { id: "PUcNcS9JUso", sec: 210 };
+// Tebrik duvarı: WALL.url boşken mesajlar yalnız bu tarayıcıda saklanır. Ortak duvar için tools/wall-worker.js
+// (Cloudflare Worker + KV) yayınlanıp adresi buraya yazılır: GET mesaj listesi, POST { name, text }.
+const WALL = { url: "" };
+const wall = { msgs: [], me: (() => { try { return localStorage.getItem("ls.azName") || ""; } catch { return ""; } })() };
+const cleanMsg = m => ({ name: String(m.name || "").trim().slice(0, 24), text: String(m.text || "").trim().slice(0, 90), at: m.at || Date.now() });
+async function loadWall() {
+  try {
+    if (WALL.url) wall.msgs = (await (await fetch(WALL.url)).json()).map(cleanMsg);
+    else wall.msgs = JSON.parse(localStorage.getItem("ls.azWall") || "[]").map(cleanMsg);
+  } catch { wall.msgs = wall.msgs || []; }
+  wall.msgs = wall.msgs.filter(m => m.name && m.text).sort((a, b) => b.at - a.at);
+  street.setWall?.(wall.msgs, wall.me);
+}
+async function postWall(m) {
+  m = cleanMsg(m);
+  wall.me = m.name;
+  try { localStorage.setItem("ls.azName", m.name); } catch {}
+  if (WALL.url) await fetch(WALL.url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: m.name, text: m.text }) });
+  else { wall.msgs.unshift(m); try { localStorage.setItem("ls.azWall", JSON.stringify(wall.msgs.slice(0, 100))); } catch {} }
+  await loadWall();
+}
 const music = { on: false, timer: 0 };
 function setSong(on) {
   if (THEME !== "az" || on === music.on) return;
@@ -368,10 +389,32 @@ function showBaku() {
       <p class="lead">${esc(t("az.lead"))}</p>
       <p>${esc(t("az.thanks"))}</p>
       <button class="cta" data-act="song">${esc(t(music.on ? "az.stop" : "az.play"))}</button>
-      <button class="cta ghost" data-act="confetti">${esc(t("az.confetti"))}</button>
+      <div class="az-acts">
+        <button class="cta ghost" data-act="sign">${esc(t("az.signBtn"))}</button>
+        <button class="cta ghost" data-act="fly">${esc(t("az.flyBtn"))}</button>
+        <button class="cta ghost" data-act="confetti">${esc(t("az.confetti"))}</button>
+      </div>
+      <div class="sec"><h3>${esc(t("az.wallTitle"))}</h3>
+        <form class="az-wall-form" id="azWallForm">
+          <input name="name" maxlength="24" required placeholder="${esc(t("az.wallName"))}" value="${esc(wall.me)}" autocomplete="name">
+          <input name="text" maxlength="90" required placeholder="${esc(t("az.wallText"))}">
+          <button class="cta" type="submit">${esc(t("az.wallSend"))}</button>
+          <small>${esc(t(WALL.url ? "az.wallHelp" : "az.wallLocal"))}</small>
+        </form>
+        <ul class="az-wall-list">${wall.msgs.slice(0, 30).map(m => `<li><p>${esc(m.text)}</p><b>${esc(m.name)}</b></li>`).join("") || `<li class="empty">${esc(t("az.wallEmpty"))}</li>`}</ul>
+      </div>
     </div>`);
   panel.querySelector("[data-act=song]").addEventListener("click", () => setSong(!music.on));
   panel.querySelector("[data-act=confetti]").addEventListener("click", () => street.celebrate?.());
+  panel.querySelector("[data-act=sign]").addEventListener("click", () => { street.select("signing", "signing"); street.sign?.(); });
+  panel.querySelector("[data-act=fly]").addEventListener("click", () => street.flyToBaku?.());
+  panel.querySelector("#azWallForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const f = new FormData(e.target), btn = e.target.querySelector("button");
+    btn.disabled = true;
+    try { await postWall({ name: f.get("name"), text: f.get("text") }); street.celebrate?.(); showBaku(); }
+    catch { btn.disabled = false; btn.textContent = t("az.wallFail"); }
+  });
   renderKpis();
 }
 
@@ -816,6 +859,7 @@ async function boot() {
         else if (sel.kind === "lead") showLead();
         else if (sel.kind === "summit") showSummit();
         else if (sel.kind === "baku") showBaku();
+        else if (sel.kind === "signing") { showBaku(); street.sign?.(); }
         else if (sel.kind === "hq") showHQ();
         else if (sel.kind === "sector") showSector(sel.id);
       },
@@ -829,6 +873,7 @@ async function boot() {
   }
   applyEvent();
   street.setMusic?.(false, t("az.tap"));
+  if (THEME === "az") loadWall();
   syncLabels();
   street.setClock(simHours());
   street.setLead(lead.prods);

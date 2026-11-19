@@ -1241,6 +1241,315 @@ export function buildExtras(k) {
     });
   }
 
+
+  /* ---------- Azerbaycan şenliği: Alev Kuleleri, imza töreni, kortej, tebrik duvarı, Bakü uçuşu, gece ışık şovu ---------- */
+  let sign = null, flyToBaku = null, setWall = null;
+  const mkTag = (parent, cls, x, y, z) => {
+    const w = document.createElement("div");
+    w.className = "lbl";
+    const d = document.createElement("div");
+    d.className = cls;
+    w.appendChild(d);
+    const o = new CSS2DObject(w);
+    o.position.set(x, y, z);
+    parent.add(o);
+    return d;
+  };
+  if (AZ && summit) {
+    const AZC = ["#00b5e2", "#ef3340", "#509e2f"];
+
+    // 1) Alev Kuleleri: karşı yakada üç alev biçimli kule; gece cepheleri alev, Türk ve Azerbaycan bayrağı gösterir
+    const ledCv = document.createElement("canvas");
+    ledCv.width = 128; ledCv.height = 256;
+    const led = ledCv.getContext("2d");
+    const ledTex = new THREE.CanvasTexture(ledCv);
+    ledTex.colorSpace = THREE.SRGBColorSpace;
+    let ledMode = -1;
+    function drawLed(t) {
+      const mode = Math.floor(t / 7) % 4;   // alev, Azerbaycan, alev, Türkiye
+      led.clearRect(0, 0, 128, 256);
+      if (mode === 1) {
+        AZC.forEach((c, i) => { led.fillStyle = c; led.fillRect(0, i * 256 / 3, 128, 256 / 3 + 1); });
+        for (const cx of [32, 96]) {
+          led.fillStyle = "#fff"; led.beginPath(); led.arc(cx - 4, 128, 13, 0, 7); led.fill();
+          led.fillStyle = "#ef3340"; led.beginPath(); led.arc(cx - 1, 128, 10.5, 0, 7); led.fill();
+          led.fillStyle = "#fff"; led.beginPath(); led.arc(cx + 12, 128, 5, 0, 7); led.fill();
+        }
+      } else if (mode === 3) {
+        led.fillStyle = "#e30a17"; led.fillRect(0, 0, 128, 256);
+        for (const cx of [32, 96]) {
+          led.fillStyle = "#fff"; led.beginPath(); led.arc(cx - 6, 128, 18, 0, 7); led.fill();
+          led.fillStyle = "#e30a17"; led.beginPath(); led.arc(cx - 2, 128, 14.5, 0, 7); led.fill();
+          led.fillStyle = "#fff"; led.beginPath();
+          for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 3 : 7.5; led.lineTo(cx + 16 + r * Math.cos(a), 128 + r * Math.sin(a)); }
+          led.fill();
+        }
+      } else {
+        const g = led.createLinearGradient(0, 256, 0, 0);
+        g.addColorStop(0, "#ff3d00"); g.addColorStop(.5, "#ff9a00"); g.addColorStop(1, "#ffe066");
+        led.fillStyle = g; led.fillRect(0, 0, 128, 256);
+        led.fillStyle = "rgba(255,255,255,.35)";
+        for (let i = 0; i < 14; i++) {   // yukarı akan alev dilleri
+          const x = (i * 37) % 128, y = 256 - ((t * 90 + i * 53) % 300);
+          led.beginPath(); led.ellipse(x, y, 7, 22, 0, 0, 7); led.fill();
+        }
+      }
+      ledMode = mode;
+      ledTex.needsUpdate = true;
+    }
+    drawLed(0);
+    const flameMat = new THREE.MeshStandardMaterial({ color: 0x8cbad6, metalness: .25, roughness: .25, emissive: 0xffffff, emissiveMap: ledTex, emissiveIntensity: .05 });
+    const prof = [[0, 0], [.34, 0], [.45, .14], [.44, .34], [.34, .58], [.18, .8], [.05, .95], [0, 1]].map(([r, y]) => new THREE.Vector2(r, y));
+    const flameGeo = new THREE.LatheGeometry(prof, 32);
+    const ft = new THREE.Group();
+    ft.position.set(summit.x + 6, 0, -52);   // Qız Qalası'nın arkasında, kıyıya yakın
+    world.add(ft);
+    for (const [x, z, h, w] of [[-10, 0, 26, 9], [0, -6, 31, 10.5], [10, 0, 24, 8.5]]) {
+      const m = new THREE.Mesh(flameGeo, flameMat);
+      m.scale.set(w, h, w * .8);
+      m.position.set(x, 0, z);
+      m.castShadow = true;
+      ft.add(m);
+    }
+    nightFx.push(l => { flameMat.emissiveIntensity = .05 + 1.3 * l; });
+    let ledT = 0;
+    anim.push((dt, t) => { if (lit > .15 && (ledT -= dt) <= 0) { ledT = 1 / 15; drawLed(t); } else if (lit <= .15 && ledMode !== 0 && Math.floor(t / 7) % 4 !== ledMode) drawLed(0); });
+
+    // Kulenin önündeki alan: ortak grup
+    const plaza = new THREE.Group();
+    plaza.position.set(summit.x, 0, summit.z);
+    world.add(plaza);
+
+    // 2) İmza töreni: masa, belge, kalem, iki temsilci; dokununca imza, el sıkışma, konfeti ve havai fişek
+    const tbl = new THREE.Group();
+    tbl.position.set(4.2, 0, 4.4);
+    plaza.add(tbl);
+    box(tbl, 2.6, .08, 1.1, mat(0x5b3a24, { roughness: .6 }), 0, .82, 0);
+    box(tbl, 2.62, .5, 1.12, mat(0x7a1020, { roughness: .9 }), 0, .4, .0);   // örtü
+    for (const [x, tex] of [[-1, trFlagTex], [1, azFlagTex]]) {
+      cyl(tbl, .015, .015, .5, M.ink, x, .9, -.35, 6);
+      const f = new THREE.Mesh(new THREE.PlaneGeometry(.42, .26).translate(.21, 0, 0), new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide }));
+      f.position.set(x, 1.28, -.35);
+      tbl.add(f);
+    }
+    for (const x of [-.45, .45]) box(tbl, .5, .01, .66, M.white, x, .91, .1, false);
+    const pen = new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .32, 6), M.ink);
+    pen.rotation.z = Math.PI / 2.6;
+    pen.position.set(0, .95, .3);
+    tbl.add(pen);
+    const signers = [-.8, .8].map(x => {
+      const g = new THREE.Group();
+      g.position.set(x, 0, -.95);
+      tbl.add(g);
+      const [b] = person(g, 0, 0, 0);
+      b.material = mat(x < 0 ? 0x1d2a44 : 0x2b3a2f, { roughness: .7 });
+      return { g, x0: x, bubble: mkTag(g, "bubble", 0, 2.4, 0) };
+    });
+    tbl.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "signing", id: "signing" }; });
+    pickables.push(tbl);
+    const signHint = mkTag(tbl, "bubble show", 0, 3.2, 0);
+    signHint.textContent = tt("az.signHint");
+    let signT = -1;
+    sign = () => { if (signT < 0 || signT > 7) signT = 0; };
+    anim.push(dt => {
+      if (signT < 0) return;
+      const prev = signT;
+      signT += dt;
+      const [a, b] = signers;
+      // 0–1.6: soldaki imzalar; 1.6–3.2: sağdaki; 3.2–4.6: el sıkışma; 4.6: kutlama
+      const k1 = THREE.MathUtils.clamp(signT / 1.6, 0, 1), k2 = THREE.MathUtils.clamp((signT - 1.6) / 1.6, 0, 1);
+      pen.position.x = signT < 1.6 ? -.45 + Math.sin(k1 * 20) * .08 : signT < 3.2 ? .45 + Math.sin(k2 * 20) * .08 : 0;
+      a.g.rotation.x = signT < 1.6 ? .25 : 0;
+      b.g.rotation.x = signT >= 1.6 && signT < 3.2 ? .25 : 0;
+      const hs = THREE.MathUtils.clamp((signT - 3.2) / .6, 0, 1) * (signT < 6.5 ? 1 : Math.max(0, 1 - (signT - 6.5) / .6));
+      a.g.position.x = a.x0 + hs * .45; b.g.position.x = b.x0 - hs * .45;
+      a.g.position.z = b.g.position.z = -.95 - hs * .3;
+      if (prev < .05 && signT >= .05) { a.bubble.textContent = "✍️"; a.bubble.classList.add("show"); signHint.classList.remove("show"); }
+      if (prev < 1.6 && signT >= 1.6) { a.bubble.classList.remove("show"); b.bubble.textContent = "✍️"; b.bubble.classList.add("show"); }
+      if (prev < 3.4 && signT >= 3.4) { b.bubble.textContent = "🤝"; }
+      if (prev < 4.4 && signT >= 4.4) {
+        b.bubble.classList.remove("show");
+        a.bubble.textContent = tt("az.signQuote"); a.bubble.classList.add("show");
+        celebrate(summit.x, summit.z + 3);
+        for (let i = 0; i < 5; i++) setTimeout(() => burst(summit.x + rand(-14, 14), rand(18, 30), summit.z + rand(-6, 6), pick(PALETTE.az)), i * 280);
+      }
+      if (signT > 12) { a.bubble.classList.remove("show"); signHint.classList.add("show"); signT = -1; }
+    });
+
+    // 4) Tebrik duvarı: kulenin solunda pano; çalışanların mesajları sırayla görünür
+    const wallG = new THREE.Group();
+    wallG.position.set(7.4, 0, -1.6);
+    wallG.rotation.y = .7;   // izometrik kameraya dönük
+    plaza.add(wallG);
+    for (const x of [-1.9, 1.9]) box(wallG, .14, 4.4, .14, M.ink, x, 0, 0);
+    const wc = canvasTex(1024, 640);
+    const wFace = new THREE.MeshStandardMaterial({ map: wc.tex, emissive: 0xffffff, emissiveMap: wc.tex, emissiveIntensity: .45, roughness: .55 });
+    const wBoard = new THREE.Mesh(BOX, [M.ink, M.ink, M.ink, M.ink, wFace, M.ink]);
+    wBoard.scale.set(4.2, 2.6, .16); wBoard.position.set(0, 3, 0);
+    wallG.add(wBoard);
+    nightFx.push(l => { wFace.emissiveIntensity = .45 + .5 * l; });
+    wallG.traverse(o => { if (o.isMesh) o.userData.pick = { kind: "baku", id: "baku" }; });
+    pickables.push(wallG);
+    let wallMsgs = [], wallI = 0, wallT = 0;
+    function drawWall() {
+      const c = wc.ctx;
+      c.fillStyle = "#0e1a22"; c.fillRect(0, 0, 1024, 640);
+      AZC.forEach((col, i) => { c.fillStyle = col; c.fillRect(i * 1024 / 3, 0, 1024 / 3 + 1, 14); });
+      c.fillStyle = "#e30a17"; c.fillRect(0, 626, 1024, 14);
+      c.textAlign = "left"; c.textBaseline = "alphabetic";
+      c.fillStyle = "#ffd36b"; c.font = `800 54px "Red Hat Display"`; c.fillText(tt("az.wallTitle"), 48, 92);
+      c.fillStyle = "rgba(255,255,255,.6)"; c.font = `600 30px "Red Hat Display"`; c.fillText(tt("az.wallSub", { n: wallMsgs.length }), 48, 136);
+      const show = wallMsgs.length ? [0, 1, 2].map(k => wallMsgs[(wallI + k) % wallMsgs.length]).filter((m, k, arr) => arr.indexOf(m) === k) : [];
+      show.forEach((m, k) => {
+        const y = 210 + k * 140;
+        c.fillStyle = "rgba(255,255,255,.08)"; c.fillRect(40, y - 52, 944, 120);
+        c.fillStyle = "#ffffff"; fitText(c, `“${m.text}”`, 600, 40, 900); c.fillText(`“${m.text}”`, 64, y);
+        c.fillStyle = "#4fd0d8"; c.font = `700 30px "Red Hat Display"`; c.fillText(`— ${m.name}`, 64, y + 46);
+      });
+      if (!show.length) { c.fillStyle = "rgba(255,255,255,.75)"; c.font = `600 40px "Red Hat Display"`; c.fillText(tt("az.wallEmpty"), 64, 300); }
+      wc.tex.needsUpdate = true;
+    }
+    drawWall();
+    anim.push(dt => { if (wallMsgs.length > 3 && (wallT -= dt) <= 0) { wallT = 6; wallI = (wallI + 1) % wallMsgs.length; drawWall(); } });
+
+    // 3) Kortej: merkez binasından Qız Qalası'na bayraklarla yürüyen gruplar; tebrik bırakanlar adlarıyla aralarında
+    const route = [[hqX, -11.5], [hqX, -6.6], [summit.x - 9, -6.6], [summit.x - 9, summit.z + 8.5], [summit.x - 4, summit.z + 8.5]].map(([x, z]) => new THREE.Vector2(x, z));
+    const segLen = route.slice(1).map((p, i) => p.distanceTo(route[i]));
+    const ROUTE = segLen.reduce((a, b) => a + b, 0);
+    function routeAt(s) {
+      s = THREE.MathUtils.clamp(s, 0, ROUTE);
+      for (let i = 0; i < segLen.length; i++) {
+        if (s <= segLen[i] || i === segLen.length - 1) {
+          const a = route[i], b = route[i + 1], k = segLen[i] ? s / segLen[i] : 0;
+          return { x: a.x + (b.x - a.x) * k, z: a.y + (b.y - a.y) * k, dx: (b.x - a.x) / (segLen[i] || 1), dz: (b.y - a.y) / (segLen[i] || 1) };
+        }
+        s -= segLen[i];
+      }
+    }
+    let marchNames = [], marchCursor = 0, meName = "", meIn = null;
+    const groups = [];
+    function spawnGroup(s0) {
+      const g = { s: s0, members: [], wait: 0 };
+      const named = [];
+      if (meName && !meIn) { named.push({ name: meName, text: marchNames.find(m => m.name === meName)?.text || "", me: true }); meIn = g; }
+      const others = marchNames.filter(m => m.name !== meName);
+      for (let k = 0; k < Math.min(3, others.length); k++) named.push(others[marchCursor++ % others.length]);
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        const mg = new THREE.Group();
+        person(mg, 0, 0, 0);
+        poleFlag(mg, .28, .6, 0, i % 2 ? azMat : trMat, .75, 1.1);
+        world.add(mg);
+        const who = named[i];
+        let tag = null, bubble = null;
+        if (who) {
+          tag = mkTag(mg, "me-tag" + (who.me ? " mine" : ""), 0, 2.05, 0);
+          tag.textContent = who.name;
+          if (who.text) { bubble = mkTag(mg, "bubble", 0, 2.6, 0); bubble.textContent = who.text; }
+        }
+        g.members.push({ mg, row: Math.floor(i / 2), lat: i % 2 ? .5 : -.5, ph: Math.random() * 6, bubble, bT: rand(2, 8) });
+      }
+      groups.push(g);
+    }
+    function dropGroup(g) {
+      for (const m of g.members) { m.mg.traverse(o => { if (o.isCSS2DObject) o.element.remove(); }); world.remove(m.mg); }
+      if (meIn === g) meIn = null;
+      groups.splice(groups.indexOf(g), 1);
+    }
+    for (const k of [.15, .45, .75, .93]) spawnGroup(ROUTE * k);
+    let spawnT = 30;
+    anim.push((dt, t) => {
+      if ((spawnT -= dt) <= 0) { spawnT = 32; if (groups.length < 6) spawnGroup(0); }
+      for (const g of [...groups]) {
+        if (g.s < ROUTE) g.s = Math.min(ROUTE + 2, g.s + 3 * dt);
+        else if ((g.wait += dt) > 14) { dropGroup(g); continue; }
+        for (const m of g.members) {
+          const p = routeAt(g.s - m.row * 1.1);
+          m.mg.position.set(p.x - p.dz * m.lat, g.s < ROUTE ? Math.abs(Math.sin(t * 7 + m.ph)) * .08 : 0, p.z + p.dx * m.lat);
+          m.mg.rotation.y = Math.atan2(-p.dz, p.dx) - Math.PI / 2;
+          if (m.bubble && (m.bT -= dt) <= 0) { const on = !m.bubble.classList.contains("show"); m.bubble.classList.toggle("show", on); m.bT = on ? 5 : rand(6, 12); }
+        }
+      }
+    });
+    setWall = (msgs, me) => {
+      wallMsgs = msgs.slice(0, 40);
+      marchNames = wallMsgs.filter((m, i) => wallMsgs.findIndex(x => x.name === m.name) === i);   // kişi başı son mesaj
+      wallI = 0; drawWall();
+      if (me && me !== meName) { meName = me; meIn = null; spawnGroup(ROUTE * .55); }
+    };
+
+    // 5) Bakü uçuşu: apronda bekleyen uçağın eşi pistte hızlanıp doğuya, Bakü'ye uçar; köşede rota kartı
+    const hud = document.createElement("div");
+    hud.className = "az-flight";
+    hud.hidden = true;
+    hud.innerHTML = `<div class="af-head"><b>✈ ${tt("az.flight")}</b><small></small></div>
+      <svg viewBox="0 0 240 70"><path id="afPath" d="M14 52 Q120 -6 226 40" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 5"/>
+      <circle cx="14" cy="52" r="5" fill="#e30a17"/><circle cx="226" cy="40" r="5" fill="#00b5e2"/>
+      <text x="6" y="68">İstanbul</text><text x="234" y="62" text-anchor="end">Bakı</text><text class="af-plane" font-size="16">✈</text></svg>`;
+    el.parentElement.appendChild(hud);
+    const hudPath = hud.querySelector("#afPath"), hudPlane = hud.querySelector(".af-plane"), hudSmall = hud.querySelector("small");
+    const rw = k.rwy, src = planeGroups[0];
+    let jet = null, fl = null;
+    flyToBaku = () => {
+      if (!src || !rw || fl) return;
+      if (!jet) { jet = src.clone(); world.add(jet); }
+      jet.visible = true;
+      fl = { x: rw.x - rw.len / 2 + 6, y: 1.95, v: 0, t: 0 };
+      jet.rotation.set(0, 0, 0);
+      hud.hidden = false;
+    };
+    anim.push(dt => {
+      if (!fl) return;
+      fl.t += dt;
+      fl.v = Math.min(fl.v + 9 * dt, 46);
+      fl.x += fl.v * dt;
+      if (fl.v > 30) fl.y += (fl.v - 30) * .5 * dt;
+      jet.position.set(fl.x, fl.y, rw.z);
+      jet.rotation.z = fl.v > 30 ? Math.min(.18, (fl.v - 30) * .02) : 0;
+      const end = X_MAX + 260, k2 = THREE.MathUtils.clamp((fl.x - (rw.x - rw.len / 2)) / (end - (rw.x - rw.len / 2)), 0, 1);
+      const pt = hudPath.getPointAtLength(hudPath.getTotalLength() * k2);
+      hudPlane.setAttribute("x", pt.x - 8); hudPlane.setAttribute("y", pt.y + 6);
+      hudSmall.textContent = k2 < 1 ? `${Math.round(1770 * (1 - k2)).toLocaleString("tr")} km` : tt("az.landed");
+      if (k2 >= 1) { jet.visible = false; fl = null; setTimeout(() => { if (!fl) hud.hidden = true; }, 4000); }
+    });
+    setTimeout(() => flyToBaku(), 25000);
+    setInterval(() => flyToBaku(), 180000);
+
+    // 6) Gece ışık şovu: cepheler bayrak renklerinde dalga dalga yanar, kulenin üstünde iki bayrağın lazer yansıması
+    const SHOW = [0xe30a17, 0xffffff, 0x00b5e2, 0xef3340, 0x509e2f];
+    const showCol = new THREE.Color();
+    const laser = new THREE.Group();
+    laser.position.set(summit.x, 0, summit.z - 1.5);
+    world.add(laser);
+    const holoMats = [trFlagTex, azFlagTex].map((tex, i) => {
+      const m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(9, 5.4), m);
+      p.position.set(i ? 5 : -5, 31, 0);
+      laser.add(p);
+      return m;
+    });
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    for (const x of [-8, -2, 2, 8]) {
+      const len = Math.hypot(x, 12.5);
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(.05, .3, len, 6), beamMat);
+      beam.position.set(x / 2, 15.8 + 12.5 / 2 + 2, 0);
+      beam.rotation.z = -Math.atan2(x, 12.5);
+      laser.add(beam);
+    }
+    anim.push((dt, t) => {
+      const on = lit > .3 ? (lit - .3) / .7 : 0;
+      laser.visible = on > 0;
+      for (const m of holoMats) m.opacity = on * (.75 + Math.sin(t * 23) * .05);
+      beamMat.opacity = on * .35;
+      for (const [, co] of companies) {
+        if (!on) { if (co.showing) { co.wallMat.emissive.setHex(0); co.showing = false; } continue; }
+        const i = Math.floor(co.lot.x / 24 + t * .8);
+        co.wallMat.emissive.copy(showCol.setHex(SHOW[((i % SHOW.length) + SHOW.length) % SHOW.length])).multiplyScalar(.5 * on);
+        co.showing = true;
+      }
+    });
+  }
+
   function setMusic(on, text) {
     onMusic = !!on;
     if (bakuTag) bakuTag.textContent = text;
@@ -2098,5 +2407,5 @@ export function buildExtras(k) {
     }
   }
 
-  return { step, applyNight, setEvent, setLead, note, setMusic, celebrate, rollD20: () => k.rollD20?.(), seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
+  return { step, applyNight, setEvent, setLead, note, setMusic, celebrate, sign: () => sign?.(), flyToBaku: () => flyToBaku?.(), setWall: (m, me) => setWall?.(m, me), rollD20: () => k.rollD20?.(), seaZ: FAR, busy: () => fire.state !== "idle", siren: () => fire.sound };
 }
